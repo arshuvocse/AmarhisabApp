@@ -136,6 +136,22 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
                 val overridePrintScript = """
                     (function() {
+                        if (!document.getElementById('fontawesome-cdn')) {
+                            var link = document.createElement('link');
+                            link.id = 'fontawesome-cdn';
+                            link.rel = 'stylesheet';
+                            link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css';
+                            document.head.appendChild(link);
+                        }
+
+                        if (!document.getElementById('feather-icon-font-cdn')) {
+                            var link = document.createElement('link');
+                            link.id = 'feather-icon-font-cdn';
+                            link.rel = 'stylesheet';
+                            link.href = 'https://cdn.jsdelivr.net/npm/feather-icon@0.1.0/css/feather.min.css';
+                            document.head.appendChild(link);
+                        }
+
                         if (!document.getElementById('feather-icons-cdn')) {
                             var link = document.createElement('link');
                             link.id = 'feather-icons-cdn';

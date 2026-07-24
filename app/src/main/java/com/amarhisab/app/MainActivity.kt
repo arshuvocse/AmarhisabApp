@@ -137,6 +137,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 val overridePrintScript = """
                     (function() {
                         var cssLinks = [
+                            { id: 'icofont-cdn', url: 'https://amarhisab.com/public/frontend/css/icofont.min.css' },
                             { id: 'google-fonts-cdn', url: 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@300;400;500;700&display=swap' },
                             { id: 'fontawesome-cdn', url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css' },
                             { id: 'amarhisab-icons-css', url: 'https://amarhisab.com/public/dashboard/css/icons.css' },
@@ -159,7 +160,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         if (!document.getElementById('feather-icon-fix-style')) {
                             var style = document.createElement('style');
                             style.id = 'feather-icon-fix-style';
-                            style.innerHTML = '@font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
+                            style.innerHTML = '@font-face { font-family: "IcoFont"; src: url("https://amarhisab.com/public/frontend/fonts/icofont.woff2") format("woff2"), url("https://amarhisab.com/public/frontend/fonts/icofont.woff") format("woff"); } @font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } html body i, html body span.icofont, html body span.fe, html body i[class*="icofont-"], html body span[class*="icofont-"], html body i[class*="fe-"], html body span[class*="fe-"], html body .icofont, html body .fe, html body .fa, html body .fas, html body .far, html body .fab { font-family: "IcoFont", "icofont", "feather", "feathericon", "FontAwesome", "Font Awesome 5 Free", sans-serif !important; display: inline-block !important; }';
                             document.head.appendChild(style);
                         }
 
@@ -182,7 +183,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         };
 
                         function processFeatherIcons() {
-                            var selector = 'i[class*="fe-"], i.fe, span[class*="fe-"], a[class*="fe-"], button[class*="fe-"]';
+                            var selector = 'i[class*="icofont-"], i[class*="fe-"], i.fe, i.icofont, span[class*="icofont-"], span[class*="fe-"], a[class*="icofont-"], a[class*="fe-"], button[class*="icofont-"], button[class*="fe-"]';
                             var elements = Array.prototype.slice.call(document.querySelectorAll(selector));
 
                             elements.forEach(function(el) {
@@ -192,7 +193,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                 var iconName = null;
                                 for (var i = 0; i < classes.length; i++) {
                                     var c = classes[i];
-                                    if (c.indexOf('fe-') === 0 && c.length > 3) {
+                                    if (c.indexOf('icofont-') === 0 && c.length > 8) {
+                                        iconName = c.substring(8);
+                                        break;
+                                    } else if (c.indexOf('fe-') === 0 && c.length > 3) {
                                         iconName = c.substring(3);
                                         break;
                                     }
@@ -401,7 +405,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         if (!document.getElementById('feather-icon-fix-style')) {
                             var style = document.createElement('style');
                             style.id = 'feather-icon-fix-style';
-                            style.innerHTML = '@font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
+                            style.innerHTML = '@font-face { font-family: "IcoFont"; src: url("https://amarhisab.com/public/frontend/fonts/icofont.woff2") format("woff2"), url("https://amarhisab.com/public/frontend/fonts/icofont.woff") format("woff"); } @font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } html body i, html body span.icofont, html body span.fe, html body i[class*="icofont-"], html body span[class*="icofont-"], html body i[class*="fe-"], html body span[class*="fe-"], html body .icofont, html body .fe, html body .fa, html body .fas, html body .far, html body .fab { font-family: "IcoFont", "icofont", "feather", "feathericon", "FontAwesome", "Font Awesome 5 Free", sans-serif !important; display: inline-block !important; }';
                             (document.head || document.documentElement).appendChild(style);
                         }
                     })();

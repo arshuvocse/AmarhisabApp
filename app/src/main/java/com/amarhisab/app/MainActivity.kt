@@ -415,17 +415,8 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                             });
                                             clonedDoc.querySelectorAll('th').forEach(whiten);
 
-                                            // Ensure rightmost table cells and tables have explicit, visible right borders
-                                            clonedDoc.querySelectorAll('tr').forEach(function(row) {
-                                                var lastCell = row.lastElementChild;
-                                                if (lastCell && (lastCell.tagName === 'TD' || lastCell.tagName === 'TH')) {
-                                                    lastCell.style.setProperty('border-right', '1.5px solid #000000', 'important');
-                                                }
-                                            });
-
                                             clonedDoc.querySelectorAll('table').forEach(function(tbl) {
                                                 tbl.style.setProperty('overflow', 'visible', 'important');
-                                                tbl.style.setProperty('border-right', '1.5px solid #000000', 'important');
                                             });
                                         }
                                     }).then(function(canvas) {

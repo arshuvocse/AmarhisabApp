@@ -174,7 +174,7 @@ object BitmapPrintRenderer {
         val borderPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 1.3f
+            strokeWidth = 1.0f
         }
 
         val fillPaint = Paint().apply {

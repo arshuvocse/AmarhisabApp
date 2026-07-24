@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                             { id: 'google-fonts-cdn', url: 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@300;400;500;700&display=swap' },
                             { id: 'fontawesome-cdn', url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css' },
                             { id: 'amarhisab-icons-css', url: 'https://amarhisab.com/public/dashboard/css/icons.css' },
-                            { id: 'amarhisab-feather-css', url: 'https://amarhisab.com/dashboard/iconfonts/feather/feather.css' },
+                            { id: 'amarhisab-feather-css', url: 'https://amarhisab.com/public/dashboard/iconfonts/feather/feather.css' },
                             { id: 'amarhisab-fontawesome-css', url: 'https://amarhisab.com/public/dashboard/iconfonts/fontawesome-free/css/all.min.css' },
                             { id: 'feathericon-cdn', url: 'https://cdn.jsdelivr.net/npm/feathericon@1.0.2/build/css/feathericon.min.css' },
                             { id: 'feather-font-cdn', url: 'https://cdn.jsdelivr.net/npm/feather-font@1.0.0/src/css/feather.css' },
@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         if (!document.getElementById('feather-icon-fix-style')) {
                             var style = document.createElement('style');
                             style.id = 'feather-icon-fix-style';
-                            style.innerHTML = '@font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
+                            style.innerHTML = '@font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
                             document.head.appendChild(style);
                         }
 
@@ -401,7 +401,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         if (!document.getElementById('feather-icon-fix-style')) {
                             var style = document.createElement('style');
                             style.id = 'feather-icon-fix-style';
-                            style.innerHTML = '@font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
+                            style.innerHTML = '@font-face { font-family: "feather"; src: url("https://amarhisab.com/public/dashboard/iconfonts/feather/fonts/feather/feather-webfont.ttf") format("truetype"); font-weight: normal; font-style: normal; } @font-face { font-family: "LiAdorNoirrit"; src: url("https://amarhisab.com/public/fonts/LiAdorNoirritRegular.ttf") format("truetype"); } .fe, [class*="fe-"] { font-family: "feather", "feathericon", "Feather", "FontAwesome", sans-serif !important; display: inline-block; }';
                             (document.head || document.documentElement).appendChild(style);
                         }
                     })();

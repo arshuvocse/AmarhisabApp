@@ -468,6 +468,17 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 view?.evaluateJavascript(earlyFixScript, null)
             }
 
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                return handleCustomIntentUrl(url)
+            }
+
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                if (url == null) return false
+                return handleCustomIntentUrl(url)
+            }
+
             override fun onReceivedError(
                 view: WebView?,
                 errorCode: Int,
@@ -488,6 +499,41 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 progressBar.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
             }
         }
+    }
+
+    private fun handleCustomIntentUrl(url: String): Boolean {
+        if (url.startsWith("whatsapp://") ||
+            url.contains("api.whatsapp.com") ||
+            url.contains("wa.me") ||
+            url.startsWith("intent://") ||
+            url.startsWith("tel:") ||
+            url.startsWith("mailto:")
+        ) {
+            try {
+                val intent = if (url.startsWith("intent://")) {
+                    Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                } else {
+                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                }
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                    return true
+                } else {
+                    val webUrl = if (url.startsWith("whatsapp://send")) {
+                        url.replace("whatsapp://send", "https://api.whatsapp.com/send")
+                    } else url
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(webUrl)))
+                    return true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                    return true
+                } catch (_: Exception) {}
+            }
+        }
+        return false
     }
 
     private fun loadSite() {

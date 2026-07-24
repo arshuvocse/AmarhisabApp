@@ -71,12 +71,11 @@ class WebAppInterface(
     @JavascriptInterface
     fun printReceipt(receiptJson: String) {
         Log.d(TAG, "printReceipt() called from JS, payload=$receiptJson")
-        showToast("প্রিন্ট বাটনে ক্লিক হয়েছে! (printReceipt)")
         runWithBluetoothReady {
             try {
                 val json = JSONObject(receiptJson)
                 if (!printerManager.hasSavedPrinter()) {
-                    showToast("আগে Printer settings থেকে একটি প্রিন্টার সেভ করুন")
+                    showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
                     val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
@@ -95,10 +94,9 @@ class WebAppInterface(
     @JavascriptInterface
     fun printText(text: String) {
         Log.d(TAG, "printText() called from JS")
-        showToast("প্রিন্ট বাটনে ক্লিক হয়েছে! (printText)")
         runWithBluetoothReady {
             if (!printerManager.hasSavedPrinter()) {
-                showToast("আগে Printer settings থেকে একটি প্রিন্টার সেভ করুন")
+                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
                 val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
@@ -113,10 +111,9 @@ class WebAppInterface(
     @JavascriptInterface
     fun printBitmapBase64(base64Image: String) {
         Log.d(TAG, "printBitmapBase64() called from JS")
-        showToast("প্রিন্ট শুরু হচ্ছে...")
         runWithBluetoothReady {
             if (!printerManager.hasSavedPrinter()) {
-                showToast("আগে Printer settings থেকে একটি প্রিন্টার সেভ করুন")
+                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
                 val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
@@ -147,10 +144,8 @@ class WebAppInterface(
         }
     }
 
-    private fun showToast(message: String) {
-        android.os.Handler(context.mainLooper).post {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
+    private fun showToast(message: String, isError: Boolean = false, isSuccess: Boolean = false) {
+        com.amarhisab.app.utils.CustomToast.show(context, message, isError = isError, isSuccess = isSuccess)
     }
 
     companion object {

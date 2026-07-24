@@ -33,6 +33,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.amarhisab.app.printer.PrinterSettingsActivity
 
 import android.widget.TextView
+import android.widget.ImageView
 import android.net.Network
 import android.net.NetworkRequest
 
@@ -82,7 +83,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         findViewById<Button>(R.id.retryButton).setOnClickListener { loadSite() }
         setupDraggableFab()
 
-        printerManager = BluetoothPrinterManager(this)
+        printerManager = BluetoothPrinterManager.getInstance(this)
+        printerManager.onConnectionStateChanged = {
+            runOnUiThread { updateFabState() }
+        }
         requestBluetoothPermissionsIfNeeded()
 
         // Enable Chrome DevTools inspection (chrome://inspect)
@@ -92,13 +96,25 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         swipeRefresh.isEnabled = false
 
         registerNetworkCallback()
-        loadSite()
+        if (savedInstanceState != null) {
+            webView.restoreState(savedInstanceState)
+        } else {
+            val savedUrl = getSharedPreferences("amarhisab_prefs", MODE_PRIVATE).getString("last_url", null)
+            loadSite(savedUrl)
+        }
     }
 
     override fun onResume() {
         super.onResume()
         updateFabState()
         updateNetworkBannerState()
+        if (!printerManager.isConnected() && printerManager.isBluetoothEnabled() && printerManager.hasSavedPrinter()) {
+            printerManager.connectToSaved { _, _ ->
+                runOnUiThread {
+                    updateFabState()
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -184,8 +200,14 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         )
 
         webView.webViewClient = object : WebViewClient() {
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                saveLastUrl(url)
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                saveLastUrl(url)
                 swipeRefresh.isRefreshing = false
                 progressBar.visibility = View.GONE
 
@@ -574,15 +596,39 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         return false
     }
 
-    private fun loadSite() {
+    private fun saveLastUrl(url: String?) {
+        if (!url.isNullOrEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
+            getSharedPreferences("amarhisab_prefs", MODE_PRIVATE)
+                .edit()
+                .putString("last_url", url)
+                .apply()
+        }
+    }
+
+    private fun loadSite(targetUrl: String? = null) {
         offlineView.visibility = View.GONE
         updateNetworkBannerState()
+        val urlToLoad = targetUrl
+            ?: webView.url
+            ?: getSharedPreferences("amarhisab_prefs", MODE_PRIVATE).getString("last_url", null)
+            ?: siteUrl
+
         if (isNetworkAvailable()) {
-            webView.loadUrl(siteUrl)
+            webView.loadUrl(urlToLoad)
         } else {
             swipeRefresh.isRefreshing = false
             offlineView.visibility = View.VISIBLE
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        webView.saveState(outState)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        webView.restoreState(savedInstanceState)
     }
 
     private fun isNetworkAvailable(): Boolean {
@@ -619,10 +665,20 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
      * Updates the Floating Action Button icon and background color dynamically based on
      * printer connection state.
      */
+    /**
+     * Updates the Floating Action Button icon and background color dynamically based on
+     * printer connection state.
+     */
     fun updateFabState() {
         val isConnected = printerManager.isConnected()
+        val hasSaved = printerManager.hasSavedPrinter()
+
         val iconRes = if (isConnected) R.drawable.ic_bluetooth_connected else R.drawable.ic_bluetooth_disabled
-        val bgColor = if (isConnected) Color.parseColor("#4CAF50") else Color.parseColor("#757575")
+        val bgColor = when {
+            isConnected -> Color.parseColor("#4CAF50") // Green when connected
+            hasSaved -> Color.parseColor("#FF9800")    // Amber/Orange when printer is saved but disconnected
+            else -> Color.parseColor("#757575")        // Grey when no printer is saved
+        }
 
         val drawable = AppCompatResources.getDrawable(this, iconRes)
         fabPrinter.setImageDrawable(drawable)
@@ -636,7 +692,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 if (enabled) {
                     showPrinterActionOptions()
                 } else {
-                    Toast.makeText(this, "Bluetooth চালু করা প্রয়োজন", Toast.LENGTH_SHORT).show()
+                    com.amarhisab.app.utils.CustomToast.show(this, "Bluetooth চালু করা প্রয়োজন", isError = true)
                 }
             }
         } else {
@@ -645,66 +701,101 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     private fun showPrinterActionOptions() {
-        if (printerManager.isConnected()) {
-            val printerName = printerManager.savedPrinterName() ?: printerManager.savedPrinterAddress() ?: "Unknown"
-            AlertDialog.Builder(this)
-                .setTitle("Printer Status")
-                .setMessage("Connected to: $printerName")
-                .setPositiveButton("Change Printer") { _, _ ->
-                    startActivity(Intent(this, PrinterSettingsActivity::class.java))
-                }
-                .setNeutralButton("Disconnect") { _, _ ->
-                    printerManager.disconnect()
-                    Toast.makeText(this, "Printer disconnected", Toast.LENGTH_SHORT).show()
-                    fabPrinter.postDelayed({ updateFabState() }, 300)
-                }
-                .setNegativeButton("Close", null)
-                .show()
-        } else {
-            val paired = try {
-                printerManager.pairedDevices()
-            } catch (e: SecurityException) {
-                emptyList()
-            }
+        val isConnected = printerManager.isConnected()
+        val hasSaved = printerManager.hasSavedPrinter()
 
+        if (!hasSaved && !isConnected) {
+            val paired = try { printerManager.pairedDevices() } catch (e: SecurityException) { emptyList() }
             if (paired.isEmpty()) {
-                AlertDialog.Builder(this)
-                    .setTitle("Bluetooth Printer")
-                    .setMessage("No paired Bluetooth printer found on device.")
-                    .setPositiveButton("Printer Settings") { _, _ ->
-                        startActivity(Intent(this, PrinterSettingsActivity::class.java))
-                    }
-                    .setNegativeButton("Close", null)
-                    .show()
-            } else {
-                val deviceNames = paired.map {
-                    try { it.name ?: it.address } catch (_: SecurityException) { it.address }
-                }.toTypedArray()
-
-                AlertDialog.Builder(this)
-                    .setTitle("Select Printer to Connect")
-                    .setItems(deviceNames) { _, which ->
-                        val selectedDevice = paired[which]
-                        Toast.makeText(this, "Connecting to ${deviceNames[which]}...", Toast.LENGTH_SHORT).show()
-                        printerManager.connect(selectedDevice) { success, error ->
-                            runOnUiThread {
-                                if (success) {
-                                    printerManager.saveDefaultPrinter(selectedDevice)
-                                    Toast.makeText(this, "Connected: ${deviceNames[which]}", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(this, "Connection failed: $error", Toast.LENGTH_SHORT).show()
-                                }
-                                updateFabState()
-                            }
-                        }
-                    }
-                    .setPositiveButton("Settings") { _, _ ->
-                        startActivity(Intent(this, PrinterSettingsActivity::class.java))
-                    }
-                    .setNegativeButton("Close", null)
-                    .show()
+                startActivity(Intent(this, PrinterSettingsActivity::class.java))
+                return
             }
         }
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_printer_status, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+
+        val dialogIcon = dialogView.findViewById<ImageView>(R.id.dialogIcon)
+        val dialogIconContainer = dialogView.findViewById<View>(R.id.dialogIconContainer)
+        val dialogTitle = dialogView.findViewById<TextView>(R.id.dialogTitle)
+        val dialogStatusBadge = dialogView.findViewById<TextView>(R.id.dialogStatusBadge)
+        val dialogPrinterName = dialogView.findViewById<TextView>(R.id.dialogPrinterName)
+        val dialogPrinterAddress = dialogView.findViewById<TextView>(R.id.dialogPrinterAddress)
+        val btnPrimaryAction = dialogView.findViewById<Button>(R.id.btnPrimaryAction)
+        val btnSettingsAction = dialogView.findViewById<Button>(R.id.btnSettingsAction)
+        val btnDangerAction = dialogView.findViewById<Button>(R.id.btnDangerAction)
+        val btnCloseDialog = dialogView.findViewById<Button>(R.id.btnCloseDialog)
+
+        val savedName = printerManager.savedPrinterName() ?: "কোনো প্রিন্টার সিলেক্ট করা নেই"
+        val savedAddress = printerManager.savedPrinterAddress() ?: ""
+
+        dialogPrinterName.text = savedName
+        dialogPrinterAddress.text = if (savedAddress.isNotEmpty()) savedAddress else "প্রিন্টার সেটিংস থেকে বেছে নিন"
+
+        if (isConnected) {
+            dialogTitle.text = "প্রিন্টার কানেক্টেড"
+            dialogStatusBadge.text = "সংযুক্ত (Connected)"
+            dialogStatusBadge.setBackgroundResource(R.drawable.bg_glossy_badge_green)
+            dialogStatusBadge.setTextColor(Color.parseColor("#10B981"))
+            dialogIconContainer.setBackgroundResource(R.drawable.bg_glossy_badge_green)
+            dialogIcon.setImageResource(R.drawable.ic_bluetooth_connected)
+            dialogIcon.imageTintList = ColorStateList.valueOf(Color.parseColor("#10B981"))
+
+            btnPrimaryAction.visibility = View.GONE
+            btnDangerAction.visibility = View.VISIBLE
+
+            btnDangerAction.setOnClickListener {
+                dialog.dismiss()
+                printerManager.disconnect()
+                com.amarhisab.app.utils.CustomToast.show(this, "প্রিন্টার ডিসকানেক্ট করা হয়েছে")
+                fabPrinter.postDelayed({ updateFabState() }, 300)
+            }
+        } else {
+            dialogTitle.text = "প্রিন্টার স্ট্যাটাস"
+            dialogStatusBadge.text = if (hasSaved) "ডিসকানেক্টেড (Saved)" else "কোনো সেভ করা প্রিন্টার নেই"
+            dialogStatusBadge.setBackgroundResource(R.drawable.bg_glossy_badge_orange)
+            dialogStatusBadge.setTextColor(Color.parseColor("#F59E0B"))
+            dialogIconContainer.setBackgroundResource(R.drawable.bg_glossy_badge_orange)
+            dialogIcon.setImageResource(R.drawable.ic_bluetooth_disabled)
+            dialogIcon.imageTintList = ColorStateList.valueOf(Color.parseColor("#F59E0B"))
+
+            if (hasSaved) {
+                btnPrimaryAction.visibility = View.VISIBLE
+                btnPrimaryAction.text = "কানেক্ট করুন"
+                btnPrimaryAction.setOnClickListener {
+                    dialog.dismiss()
+                    com.amarhisab.app.utils.CustomToast.show(this, "$savedName এর সাথে কানেক্ট করা হচ্ছে...")
+                    printerManager.connectToSaved { success, error ->
+                        runOnUiThread {
+                            if (success) {
+                                com.amarhisab.app.utils.CustomToast.show(this, "সংযুক্ত হয়েছে: $savedName", isSuccess = true)
+                            } else {
+                                com.amarhisab.app.utils.CustomToast.show(this, "কানেকশন ব্যর্থ: ${error ?: "অজানা সমস্যা"}", isError = true)
+                            }
+                            updateFabState()
+                        }
+                    }
+                }
+            } else {
+                btnPrimaryAction.visibility = View.GONE
+            }
+            btnDangerAction.visibility = View.GONE
+        }
+
+        btnSettingsAction.setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, PrinterSettingsActivity::class.java))
+        }
+
+        btnCloseDialog.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     @SuppressLint("ClickableViewAccessibility")

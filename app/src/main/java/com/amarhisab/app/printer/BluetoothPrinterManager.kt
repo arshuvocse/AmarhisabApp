@@ -26,7 +26,7 @@ import java.util.concurrent.Executors
  * Uses the standard Serial Port Profile UUID, which is what almost all
  * generic Bluetooth thermal receipt printers expose.
  */
-class BluetoothPrinterManager(private val context: Context) {
+class BluetoothPrinterManager private constructor(private val context: Context) {
 
     private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
@@ -35,8 +35,49 @@ class BluetoothPrinterManager(private val context: Context) {
     private var socket: BluetoothSocket? = null
     private var outputStream: OutputStream? = null
 
+    var onConnectionStateChanged: (() -> Unit)? = null
+
     private val prefs: SharedPreferences =
         context.getSharedPreferences("amarhisab_printer_prefs", Context.MODE_PRIVATE)
+
+    private val btReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            if (action == BluetoothDevice.ACTION_ACL_DISCONNECTED) {
+                @Suppress("DEPRECATION")
+                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+                val savedAddr = savedPrinterAddress()
+                if (device != null && savedAddr != null && device.address.equals(savedAddr, ignoreCase = true)) {
+                    Log.d(TAG, "Saved Bluetooth printer ACL disconnected: ${device.address}")
+                    disconnectInternal()
+                }
+            } else if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_OFF || state == BluetoothAdapter.STATE_TURNING_OFF) {
+                    Log.d(TAG, "Bluetooth turned off")
+                    disconnectInternal()
+                }
+            }
+        }
+    }
+
+    init {
+        try {
+            val filter = android.content.IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            }
+            context.registerReceiver(btReceiver, filter)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register BT broadcast receiver", e)
+        }
+    }
+
+    private fun notifyStateChanged() {
+        android.os.Handler(context.mainLooper).post {
+            onConnectionStateChanged?.invoke()
+        }
+    }
 
     fun pairedDevices(): List<BluetoothDevice> {
         return adapter?.bondedDevices?.toList() ?: emptyList()
@@ -57,8 +98,11 @@ class BluetoothPrinterManager(private val context: Context) {
     fun saveDefaultPrinter(device: BluetoothDevice) {
         val editor = prefs.edit().putString(KEY_PRINTER_ADDRESS, device.address)
         try {
-            editor.putString(KEY_PRINTER_NAME, device.name)
-        } catch (_: SecurityException) {}
+            val deviceName = device.name ?: device.address
+            editor.putString(KEY_PRINTER_NAME, deviceName)
+        } catch (_: SecurityException) {
+            editor.putString(KEY_PRINTER_NAME, device.address)
+        }
         editor.apply()
     }
 
@@ -83,13 +127,41 @@ class BluetoothPrinterManager(private val context: Context) {
             newSocket.connect()
             socket = newSocket
             outputStream = newSocket.outputStream
+            notifyStateChanged()
             true to null
         } catch (e: IOException) {
             Log.e(TAG, "Connect failed", e)
+            notifyStateChanged()
             false to e.message
         } catch (e: SecurityException) {
             Log.e(TAG, "Bluetooth permission missing", e)
+            notifyStateChanged()
             false to "Bluetooth permission নেই"
+        }
+    }
+
+    /** Connects to the saved printer in SharedPreferences if available. */
+    fun connectToSaved(onResult: ((Boolean, String?) -> Unit)? = null) {
+        if (isConnected()) {
+            onResult?.invoke(true, null)
+            return
+        }
+        val address = savedPrinterAddress()
+        if (address == null) {
+            onResult?.invoke(false, "কোনো প্রিন্টার সেভ করা নেই")
+            return
+        }
+        val device = try {
+            adapter?.bondedDevices?.firstOrNull { it.address == address }
+        } catch (e: SecurityException) {
+            null
+        }
+        if (device == null) {
+            onResult?.invoke(false, "সেভ করা প্রিন্টারটি পাওয়া যায়নি")
+            return
+        }
+        connect(device) { success, error ->
+            onResult?.invoke(success, error)
         }
     }
 
@@ -111,6 +183,7 @@ class BluetoothPrinterManager(private val context: Context) {
         } finally {
             outputStream = null
             socket = null
+            notifyStateChanged()
         }
     }
 
@@ -118,7 +191,7 @@ class BluetoothPrinterManager(private val context: Context) {
         if (isConnected()) return true
         try {
             val address = savedPrinterAddress() ?: run {
-                showToast("Kono printer save kora nei, Printer settings theke printer save korun")
+                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে প্রিন্টার সেটিংস থেকে প্রিন্টার সিলেক্ট করুন।", isError = true)
                 val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
@@ -126,21 +199,22 @@ class BluetoothPrinterManager(private val context: Context) {
                 return false
             }
             val device = adapter?.bondedDevices?.firstOrNull { it.address == address } ?: run {
-                showToast("Save kora printer ta khuje pawa jacche na, nuton printer select korun")
+                showToast("সেভ করা প্রিন্টারটি ফোনে পাওয়া যাচ্ছে না। ব্লুটুথ সেটিংস থেকে আবার সিলেক্ট করুন।", isError = true)
                 val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
                 return false
             }
-            val (connected, errorMsg) = connectBlocking(device)
+            showToast("প্রিন্টারে কানেক্ট করা হচ্ছে...")
+            val (connected, _) = connectBlocking(device)
             if (!connected) {
-                showToast("Printer e connect kora jay ni${if (errorMsg != null) ": $errorMsg" else ""}")
+                showToast("প্রিন্টারে কানেক্ট করা যায়নি! প্রিন্টারটি চালু ও কাছে আছে কিনা পরীক্ষা করুন।", isError = true)
             }
             return connected
         } catch (e: SecurityException) {
             Log.e(TAG, "Bluetooth permission missing", e)
-            showToast("Bluetooth permission dorkar, App settings theke permission din")
+            showToast("ব্লুটুথ পারমিশন দেওয়া নেই। অ্যাপ সেটিংস থেকে পারমিশন দিন।", isError = true)
             return false
         }
     }
@@ -170,10 +244,8 @@ class BluetoothPrinterManager(private val context: Context) {
         }
     }
 
-    private fun showToast(message: String) {
-        android.os.Handler(context.mainLooper).post {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
+    private fun showToast(message: String, isError: Boolean = false, isSuccess: Boolean = false) {
+        com.amarhisab.app.utils.CustomToast.show(context, message, isError = isError, isSuccess = isSuccess)
     }
 
     /** Sends a plain block of text through the ESC/POS bit-image engine. Supports Bangla/Unicode 100%. */
@@ -188,16 +260,17 @@ class BluetoothPrinterManager(private val context: Context) {
                 debugSaveBitmap(scaled, "printPlainText")
                 if (!BitmapPrintRenderer.hasVisibleContent(scaled)) {
                     Log.w(TAG, "printPlainText aborted: rendered bitmap has no visible content")
-                    showToast("প্রিন্ট বাতিল: কোনো লেখা পাওয়া যায়নি (blank content)")
+                    showToast("প্রিন্ট বাতিল: কোনো লেখা পাওয়া যায়নি", isError = true)
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
                 writeSafely(EscPosEncoder.bitmapToRaster(scaled))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
+                showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)
             } catch (e: Exception) {
                 Log.e(TAG, "printPlainText failed", e)
-                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}")
+                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}", isError = true)
                 printErrorToPaper("printPlainText", e)
             }
         }
@@ -215,16 +288,17 @@ class BluetoothPrinterManager(private val context: Context) {
                 debugSaveBitmap(scaled, "printReceipt")
                 if (!BitmapPrintRenderer.hasVisibleContent(scaled)) {
                     Log.w(TAG, "printReceipt aborted: rendered bitmap has no visible content")
-                    showToast("প্রিন্ট বাতিল: কোনো কনটেন্ট পাওয়া যায়নি (blank content)")
+                    showToast("প্রিন্ট বাতিল: কোনো কনটেন্ট পাওয়া যায়নি", isError = true)
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
                 writeSafely(EscPosEncoder.bitmapToRaster(scaled))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
+                showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)
             } catch (e: Exception) {
                 Log.e(TAG, "printReceipt failed", e)
-                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}")
+                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}", isError = true)
                 printErrorToPaper("printReceipt", e)
             }
         }
@@ -241,16 +315,17 @@ class BluetoothPrinterManager(private val context: Context) {
                 debugSaveBitmap(scaled, "printBitmapBase64")
                 if (!BitmapPrintRenderer.hasVisibleContent(scaled)) {
                     Log.w(TAG, "printBitmapBase64 aborted: captured bitmap has no visible content")
-                    showToast("প্রিন্ট বাতিল: স্ক্রিনশট ফাঁকা এসেছে (blank capture)")
+                    showToast("প্রিন্ট বাতিল: স্ক্রিনশট ফাঁকা এসেছে", isError = true)
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
                 writeSafely(EscPosEncoder.bitmapToRaster(scaled))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
+                showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)
             } catch (e: Exception) {
                 Log.e(TAG, "printBitmapBase64 failed", e)
-                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}")
+                showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}", isError = true)
                 printErrorToPaper("printBitmapBase64", e)
             }
         }
@@ -305,5 +380,14 @@ class BluetoothPrinterManager(private val context: Context) {
         private const val TAG = "BluetoothPrinterManager"
         private const val KEY_PRINTER_ADDRESS = "default_printer_address"
         private const val KEY_PRINTER_NAME = "default_printer_name"
+
+        @Volatile
+        private var instance: BluetoothPrinterManager? = null
+
+        fun getInstance(context: Context): BluetoothPrinterManager {
+            return instance ?: synchronized(this) {
+                instance ?: BluetoothPrinterManager(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }

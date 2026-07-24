@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_glossy_dialog"
+    android:padding="20dp">
+
+    <!-- Top Badge Icon -->
+    <LinearLayout
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="center_horizontal"
+        android:gravity="center"
+        android:background="@drawable/bg_glossy_badge_green"
+        android:id="@+id/dialogIconContainer"
+        android:layout_marginBottom="12dp">
+
+        <ImageView
+            android:id="@+id/dialogIcon"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/ic_bluetooth_connected"
+            app:tint="#10B981"
+            android:contentDescription="Bluetooth Status Icon" />
+    </LinearLayout>
+
+    <!-- Dialog Title -->
+    <TextView
+        android:id="@+id/dialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="ব্লুটুথ প্রিন্টার স্ট্যাটাস"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Status Badge -->
+    <TextView
+        android:id="@+id/dialogStatusBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="সংযুক্ত (Connected)"
+        android:textColor="#10B981"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="@drawable/bg_glossy_badge_green"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Printer Info Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_glossy_card"
+        android:padding="14dp"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="সিলেক্টেড প্রিন্টার:"
+            android:textColor="#94A3B8"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/dialogPrinterName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="RPP02N / PT-210"
+            android:textColor="#F8FAFC"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="2dp" />
+
+        <TextView
+            android:id="@+id/dialogPrinterAddress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="00:11:22:33:44:55"
+            android:textColor="#64748B"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/btnPrimaryAction"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="কানেক্ট করুন"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_glossy_btn_primary"
+            app:backgroundTint="@null"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/btnSettingsAction"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="প্রিন্টার পরিবর্তন করুন"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_glossy_btn_secondary"
+            app:backgroundTint="@null"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/btnDangerAction"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="ডিসকানেক্ট"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_glossy_btn_danger"
+            app:backgroundTint="@null"
+            android:layout_marginBottom="10dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnCloseDialog"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:text="বন্ধ করুন"
+            android:textColor="#94A3B8"
+            android:textSize="13sp"
+            android:background="?android:attr/selectableItemBackground"
+            app:backgroundTint="@null" />
+    </LinearLayout>
+
+</LinearLayout>

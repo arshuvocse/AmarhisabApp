@@ -33,10 +33,18 @@ object BitmapPrintRenderer {
     }
 
     fun scaleToPrinterWidth(bitmap: Bitmap, targetWidth: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
+        val sideMargin = 8
+        val safeWidth = targetWidth - (sideMargin * 2)
         if (bitmap.width == targetWidth) return bitmap
-        val ratio = targetWidth.toFloat() / bitmap.width
+        val ratio = safeWidth.toFloat() / bitmap.width
         val targetHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+        val scaledInner = Bitmap.createScaledBitmap(bitmap, safeWidth, targetHeight, true)
+
+        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(scaledInner, sideMargin.toFloat(), 0f, null)
+        return output
     }
 
     /**
@@ -216,7 +224,7 @@ object BitmapPrintRenderer {
         val totalAmountStr = "%.2f".format(receipt.optDouble("invoiceTotalAmount", items.sumOf { it.total }))
 
         // Outer box + item-table column geometry (নাম gets 40%, the three numeric columns split the rest evenly)
-        val margin = 2f
+        val margin = 8f
         val boxLeft = margin
         val boxRight = width - margin
         val boxWidth = boxRight - boxLeft

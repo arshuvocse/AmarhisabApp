@@ -32,14 +32,20 @@ import androidx.appcompat.content.res.AppCompatResources
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.amarhisab.app.printer.PrinterSettingsActivity
 
+import android.widget.TextView
+import android.net.Network
+import android.net.NetworkRequest
+
 class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequester {
 
     lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var offlineView: View
+    private lateinit var noInternetBanner: TextView
     private lateinit var fabPrinter: FloatingActionButton
     private lateinit var printerManager: BluetoothPrinterManager
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val siteUrl by lazy { getString(R.string.site_url) }
 
@@ -70,6 +76,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         progressBar = findViewById(R.id.progressBar)
         swipeRefresh = findViewById(R.id.swipeRefresh)
         offlineView = findViewById(R.id.offlineView)
+        noInternetBanner = findViewById(R.id.noInternetBanner)
         fabPrinter = findViewById(R.id.fabPrinter)
 
         findViewById<Button>(R.id.retryButton).setOnClickListener { loadSite() }
@@ -84,12 +91,60 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         setupWebView()
         swipeRefresh.isEnabled = false
 
+        registerNetworkCallback()
         loadSite()
     }
 
     override fun onResume() {
         super.onResume()
         updateFabState()
+        updateNetworkBannerState()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        networkCallback?.let {
+            val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            try { cm.unregisterNetworkCallback(it) } catch (_: Exception) {}
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                runOnUiThread {
+                    updateNetworkBannerState()
+                }
+            }
+
+            override fun onLost(network: Network) {
+                runOnUiThread {
+                    updateNetworkBannerState()
+                }
+            }
+        }
+        networkCallback = callback
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                cm.registerDefaultNetworkCallback(callback)
+            } else {
+                val request = NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                cm.registerNetworkCallback(request, callback)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        updateNetworkBannerState()
+    }
+
+    private fun updateNetworkBannerState() {
+        val hasNet = isNetworkAvailable()
+        noInternetBanner.visibility = if (hasNet) View.GONE else View.VISIBLE
     }
 
     private fun requestBluetoothPermissionsIfNeeded() {
@@ -437,6 +492,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
     private fun loadSite() {
         offlineView.visibility = View.GONE
+        updateNetworkBannerState()
         if (isNetworkAvailable()) {
             webView.loadUrl(siteUrl)
         } else {

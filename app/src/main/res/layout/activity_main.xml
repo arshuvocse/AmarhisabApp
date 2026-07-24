@@ -46,6 +46,22 @@
                 android:text="Retry" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/noInternetBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:background="#D32F2F"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:gravity="center"
+            android:elevation="10dp"
+            android:translationZ="10dp"
+            android:visibility="gone"
+            android:text="⚠️ কোনো ইন্টারনেট সংযোগ নেই (No Internet Connection)" />
+
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabPrinter"
             android:layout_width="wrap_content"

@@ -137,6 +137,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 val overridePrintScript = """
                     (function() {
                         var cssLinks = [
+                            { id: 'google-fonts-cdn', url: 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@300;400;500;700&display=swap' },
                             { id: 'fontawesome-cdn', url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css' },
                             { id: 'feathericon-cdn', url: 'https://cdn.jsdelivr.net/npm/feathericon@1.0.2/build/css/feathericon.min.css' },
                             { id: 'feather-font-cdn', url: 'https://cdn.jsdelivr.net/npm/feather-font@1.0.0/src/css/feather.css' },

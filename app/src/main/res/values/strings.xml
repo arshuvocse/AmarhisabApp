@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Amarhisab</string>
+    <string name="printer_settings_title">Printer settings</string>
+    <string name="site_url">https://www.amarhisab.com</string>
+    <string name="no_printer_connected">No printer connected</string>
+    <string name="scan_paired_devices">Paired devices</string>
+    <string name="connect">Connect</string>
+    <string name="save_default">Save as default printer</string>
+</resources>

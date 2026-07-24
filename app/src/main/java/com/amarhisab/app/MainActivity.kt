@@ -136,28 +136,38 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
                 val overridePrintScript = """
                     (function() {
-                        if (!document.getElementById('fontawesome-cdn')) {
-                            var link = document.createElement('link');
-                            link.id = 'fontawesome-cdn';
-                            link.rel = 'stylesheet';
-                            link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css';
-                            document.head.appendChild(link);
-                        }
+                        var cssLinks = [
+                            { id: 'fontawesome-cdn', url: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.9.0/css/all.min.css' },
+                            { id: 'feathericon-cdn', url: 'https://cdn.jsdelivr.net/npm/feathericon@1.0.2/build/css/feathericon.min.css' },
+                            { id: 'feather-font-cdn', url: 'https://cdn.jsdelivr.net/npm/feather-font@1.0.0/src/css/feather.css' },
+                            { id: 'feather-icons-cdn', url: 'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.css' }
+                        ];
+                        cssLinks.forEach(function(item) {
+                            if (!document.getElementById(item.id)) {
+                                var link = document.createElement('link');
+                                link.id = item.id;
+                                link.rel = 'stylesheet';
+                                link.href = item.url;
+                                document.head.appendChild(link);
+                            }
+                        });
 
-                        if (!document.getElementById('feather-icon-font-cdn')) {
-                            var link = document.createElement('link');
-                            link.id = 'feather-icon-font-cdn';
-                            link.rel = 'stylesheet';
-                            link.href = 'https://cdn.jsdelivr.net/npm/feather-icon@0.1.0/css/feather.min.css';
-                            document.head.appendChild(link);
-                        }
-
-                        if (!document.getElementById('feather-icons-cdn')) {
-                            var link = document.createElement('link');
-                            link.id = 'feather-icons-cdn';
-                            link.rel = 'stylesheet';
-                            link.href = 'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.css';
-                            document.head.appendChild(link);
+                        function processFeatherIcons() {
+                            var elements = document.querySelectorAll('i[class*="fe-"], i.fe, span[class*="fe-"]');
+                            elements.forEach(function(el) {
+                                var classes = (el.className || '').split(/\s+/);
+                                classes.forEach(function(cls) {
+                                    if (cls.indexOf('fe-') === 0 && cls.length > 3) {
+                                        var iconName = cls.substring(3);
+                                        if (!el.getAttribute('data-feather')) {
+                                            el.setAttribute('data-feather', iconName);
+                                        }
+                                    }
+                                });
+                            });
+                            if (window.feather && window.feather.replace) {
+                                try { window.feather.replace(); } catch(e){}
+                            }
                         }
 
                         if (!document.getElementById('feather-svg-script')) {
@@ -165,13 +175,24 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                             script.id = 'feather-svg-script';
                             script.src = 'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js';
                             script.onload = function() {
-                                if (window.feather && window.feather.replace) {
-                                    try { window.feather.replace(); } catch(e){}
-                                }
+                                processFeatherIcons();
                             };
                             document.head.appendChild(script);
-                        } else if (window.feather && window.feather.replace) {
-                            try { window.feather.replace(); } catch(e){}
+                        } else {
+                            processFeatherIcons();
+                        }
+
+                        processFeatherIcons();
+                        if (!window._featherInterval) {
+                            window._featherInterval = setInterval(processFeatherIcons, 1000);
+                        }
+
+                        if (window.MutationObserver && !window._featherObserved) {
+                            window._featherObserved = true;
+                            var observer = new MutationObserver(function() {
+                                processFeatherIcons();
+                            });
+                            observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
                         }
 
                         if (!document.getElementById('html2canvas-script')) {

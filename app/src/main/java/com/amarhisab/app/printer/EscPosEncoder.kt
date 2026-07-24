@@ -16,9 +16,9 @@ object EscPosEncoder {
     private const val ESC = 0x1B
     private const val GS = 0x1D
 
-    /** Pixels lighter than this (0-255 luminance) print as white. Raised from the typical 128
-     *  so anti-aliased text edges print darker/bolder on thermal paper. */
-    private const val DARKNESS_THRESHOLD = 190
+    /** Pixels lighter than this (0-255 luminance) print as white. Raised to 215
+     *  so anti-aliased text edges print darker/bolder/sharper on thermal paper. */
+    private const val DARKNESS_THRESHOLD = 215
 
     fun init(): ByteArray = byteArrayOf(ESC.toByte(), '@'.code.toByte())
 

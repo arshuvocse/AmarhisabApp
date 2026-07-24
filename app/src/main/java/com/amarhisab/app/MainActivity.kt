@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                     var captureHeight = origHeight + 10;
 
                                     window.html2canvas(printable, {
-                                        scale: 2,
+                                        scale: 3,
                                         useCORS: true,
                                         backgroundColor: '#ffffff',
                                         width: captureWidth,
@@ -414,6 +414,13 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                                 }
                                             });
                                             clonedDoc.querySelectorAll('th').forEach(whiten);
+
+                                            // Enhance text contrast and font weight for thermal paper readability
+                                            clonedDoc.querySelectorAll('td, th, span, p, div, b, strong, a, label').forEach(function(el) {
+                                                el.style.setProperty('color', '#000000', 'important');
+                                                el.style.setProperty('font-weight', '600', 'important');
+                                                el.style.setProperty('-webkit-text-stroke', '0.2px #000000', 'important');
+                                            });
 
                                             clonedDoc.querySelectorAll('table').forEach(function(tbl) {
                                                 tbl.style.setProperty('overflow', 'visible', 'important');

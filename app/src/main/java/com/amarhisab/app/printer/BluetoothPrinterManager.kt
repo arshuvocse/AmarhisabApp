@@ -148,10 +148,23 @@ class BluetoothPrinterManager(private val context: Context) {
     /** Dumps the exact bitmap about to be sent to the printer to a pullable file, for debugging what actually printed. */
     private fun debugSaveBitmap(bitmap: Bitmap, tag: String) {
         try {
-            val dir = context.getExternalFilesDir(null) ?: context.cacheDir
-            val file = File(dir, "print_debug_${tag}_${System.currentTimeMillis()}.png")
+            val timestamp = System.currentTimeMillis()
+            val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
+                ?: context.getExternalFilesDir(null)
+                ?: context.cacheDir
+
+            dir.mkdirs()
+            val file = File(dir, "print_debug_${tag}_${timestamp}.png")
             FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-            Log.d(TAG, "Saved print bitmap (${bitmap.width}x${bitmap.height}) to ${file.absolutePath}")
+
+            val latestFile = File(dir, "latest_print_debug.png")
+            FileOutputStream(latestFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+
+            Log.d(TAG, "==========================================================")
+            Log.d(TAG, "DEBUG PRINT BITMAP SAVED (${bitmap.width}x${bitmap.height}px):")
+            Log.d(TAG, "File Path: ${file.absolutePath}")
+            Log.d(TAG, "Latest File: ${latestFile.absolutePath}")
+            Log.d(TAG, "==========================================================")
         } catch (e: Exception) {
             Log.e(TAG, "debugSaveBitmap failed", e)
         }

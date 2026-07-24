@@ -439,9 +439,21 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         document.addEventListener('click', function(e) {
                             var btn = e.target.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"]');
                             if (btn) {
-                                var txt = (btn.innerText || btn.textContent || btn.value || '').toLowerCase();
-                                var attr = ((btn.id || '') + ' ' + (btn.className || '') + ' ' + (btn.getAttribute('onclick') || '')).toLowerCase();
-                                if (txt.indexOf('print') !== -1 || txt.indexOf('প্রিন্ট') !== -1 || attr.indexOf('print') !== -1) {
+                                var txt = (btn.innerText || btn.textContent || btn.value || '').trim().toLowerCase();
+                                var href = (btn.getAttribute('href') || '').trim().toLowerCase();
+                                var onclickStr = (btn.getAttribute('onclick') || '').toLowerCase();
+
+                                var isViewOrNavigate = href.length > 1 && !href.startsWith('javascript:');
+                                var isViewText = txt.indexOf('দেখুন') !== -1 || txt.indexOf('view') !== -1 || txt.indexOf('চালান') !== -1 || txt.indexOf('show') !== -1 || txt.indexOf('detail') !== -1;
+
+                                if (isViewOrNavigate || isViewText) {
+                                    return;
+                                }
+
+                                var isExplicitPrintText = txt === 'print' || txt === 'প্রিন্ট' || txt.indexOf('print invoice') !== -1 || txt.indexOf('প্রিন্ট করুন') !== -1;
+                                var isExplicitPrintAction = onclickStr.indexOf('window.print') !== -1 || (btn.id || '').toLowerCase() === 'print-btn';
+
+                                if (isExplicitPrintText || isExplicitPrintAction) {
                                     console.log("Print element clicked: " + txt);
                                     e.preventDefault();
                                     captureAndPrint();

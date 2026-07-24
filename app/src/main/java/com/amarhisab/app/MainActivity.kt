@@ -374,18 +374,31 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                 function doCapture() {
                                     if (captured) return;
                                     captured = true;
+
+                                    printable.setAttribute('data-html2canvas-target', 'true');
+                                    var origWidth = Math.max(printable.offsetWidth, printable.scrollWidth);
+                                    var origHeight = Math.max(printable.offsetHeight, printable.scrollHeight);
+                                    var captureWidth = origWidth + 30;
+                                    var captureHeight = origHeight + 10;
+
                                     window.html2canvas(printable, {
                                         scale: 2,
                                         useCORS: true,
                                         backgroundColor: '#ffffff',
-                                        width: Math.max(printable.offsetWidth, printable.scrollWidth),
-                                        height: Math.max(printable.offsetHeight, printable.scrollHeight),
+                                        width: captureWidth,
+                                        height: captureHeight,
+                                        windowWidth: captureWidth + 100,
+                                        scrollX: 0,
+                                        scrollY: 0,
                                         onclone: function(clonedDoc) {
-                                            // Thermal paper is monochrome — a colored header background
-                                            // just prints as a heavy black/gray bar. Force it white (with
-                                            // black text) in the CAPTURED COPY only; the live page is
-                                            // untouched. Match by the known header labels (not just <th>)
-                                            // since the real markup may style plain <td> cells instead.
+                                            var target = clonedDoc.querySelector('[data-html2canvas-target="true"]') || clonedDoc.body;
+                                            if (target) {
+                                                target.style.setProperty('overflow', 'visible', 'important');
+                                                target.style.setProperty('padding-right', '15px', 'important');
+                                                target.style.setProperty('box-sizing', 'border-box', 'important');
+                                            }
+
+                                            // Whiten table header backgrounds for thermal printers
                                             function whiten(el) {
                                                 el.style.setProperty('background', '#ffffff', 'important');
                                                 el.style.setProperty('background-color', '#ffffff', 'important');
@@ -401,8 +414,22 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                                 }
                                             });
                                             clonedDoc.querySelectorAll('th').forEach(whiten);
+
+                                            // Ensure rightmost table cells and tables have explicit, visible right borders
+                                            clonedDoc.querySelectorAll('tr').forEach(function(row) {
+                                                var lastCell = row.lastElementChild;
+                                                if (lastCell && (lastCell.tagName === 'TD' || lastCell.tagName === 'TH')) {
+                                                    lastCell.style.setProperty('border-right', '1.5px solid #000000', 'important');
+                                                }
+                                            });
+
+                                            clonedDoc.querySelectorAll('table').forEach(function(tbl) {
+                                                tbl.style.setProperty('overflow', 'visible', 'important');
+                                                tbl.style.setProperty('border-right', '1.5px solid #000000', 'important');
+                                            });
                                         }
                                     }).then(function(canvas) {
+                                        printable.removeAttribute('data-html2canvas-target');
                                         if (!canvas || canvas.width === 0 || canvas.height === 0) {
                                             console.error("html2canvas produced an empty canvas, falling back to text");
                                             fallbackToText();
@@ -415,6 +442,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                             window.AndroidBridge.printBitmapBase64(dataUrl);
                                         }
                                     }).catch(function(e) {
+                                        printable.removeAttribute('data-html2canvas-target');
                                         console.error("html2canvas error:", e);
                                         fallbackToText();
                                     });

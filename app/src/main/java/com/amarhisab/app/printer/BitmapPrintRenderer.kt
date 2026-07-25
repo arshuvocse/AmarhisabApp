@@ -33,18 +33,11 @@ object BitmapPrintRenderer {
     }
 
     fun scaleToPrinterWidth(bitmap: Bitmap, targetWidth: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
-        val sideMargin = 8
-        val safeWidth = targetWidth - (sideMargin * 2)
         if (bitmap.width == targetWidth) return bitmap
-        val ratio = safeWidth.toFloat() / bitmap.width
+        if (bitmap.width <= targetWidth) return bitmap
+        val ratio = targetWidth.toFloat() / bitmap.width
         val targetHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-        val scaledInner = Bitmap.createScaledBitmap(bitmap, safeWidth, targetHeight, true)
-
-        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(output)
-        canvas.drawColor(Color.WHITE)
-        canvas.drawBitmap(scaledInner, sideMargin.toFloat(), 0f, null)
-        return output
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false)
     }
 
     /**
@@ -81,7 +74,7 @@ object BitmapPrintRenderer {
     fun renderTextToBitmap(text: String, width: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
         val textPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 20f
+            textSize = 16f
             isAntiAlias = true
             isSubpixelText = true
             typeface = Typeface.MONOSPACE
@@ -124,62 +117,64 @@ object BitmapPrintRenderer {
     fun renderReceiptToBitmap(receipt: org.json.JSONObject, width: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
         val titlePaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
+            textSize = 19f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
 
         val headerPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 19f
+            textSize = 15f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
         }
 
         val boldHeaderPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 19f
-            typeface = Typeface.DEFAULT_BOLD
+            textSize = 15f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
 
         val itemPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 19f
+            textSize = 15f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
         }
 
         val tableHeadPaint = TextPaint().apply {
-            color = Color.WHITE
-            textSize = 19f
-            typeface = Typeface.DEFAULT_BOLD
+            color = Color.BLACK
+            textSize = 15f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
 
         val footerPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 17f
+            textSize = 13f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
         }
 
         val footerBoldPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 17f
-            typeface = Typeface.DEFAULT_BOLD
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
 
         val borderPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 1.0f
+            strokeWidth = 1.5f
+            isAntiAlias = true
         }
 
         val fillPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.FILL
+            isAntiAlias = true
         }
 
         // Extract JSON fields with fallback defaults from sample receipt
@@ -223,14 +218,16 @@ object BitmapPrintRenderer {
         val totalQtyStr = "%.2f".format(receipt.optDouble("invoiceTotalQty", items.sumOf { it.qty }))
         val totalAmountStr = "%.2f".format(receipt.optDouble("invoiceTotalAmount", items.sumOf { it.total }))
 
-        // Outer box + item-table column geometry (নাম gets 40%, the three numeric columns split the rest evenly)
-        val margin = 8f
-        val boxLeft = margin
-        val boxRight = width - margin
+        // Outer box + item-table column geometry (Safe margin for 58mm thermal printhead fit)
+        val leftMargin = 12f
+        val rightMargin = 34f
+        val margin = leftMargin
+        val boxLeft = leftMargin
+        val boxRight = width - rightMargin
         val boxWidth = boxRight - boxLeft
-        val padX = 6f
-        val padY = 6f
-        val rowH = 34f
+        val padX = 5f
+        val padY = 4f
+        val rowH = 28f
 
         val col1W = boxWidth * 0.40f
         val col2W = boxWidth * 0.20f
@@ -348,9 +345,11 @@ object BitmapPrintRenderer {
                 drawCentered(col2, cx1, cx2, contentTop, valuePaint)
                 drawCentered(col3, cx2, cx3, contentTop, valuePaint)
                 drawCentered(col4, cx3, cx4, contentTop, valuePaint)
+                vLine(cx0, top, bottom)
                 vLine(cx1, top, bottom)
                 vLine(cx2, top, bottom)
                 vLine(cx3, top, bottom)
+                vLine(cx4, top, bottom)
                 y = bottom
                 hLine(y)
             }
@@ -364,7 +363,7 @@ object BitmapPrintRenderer {
             singleRow(":- $seller", headerPaint, Layout.Alignment.ALIGN_NORMAL)
 
             // 7-8. Item table
-            gridRow("নাম", "মূল্য", "পরিমাণ", "মোট", tableHeadPaint, tableHeadPaint, fill = true)
+            gridRow("নাম", "মূল্য", "পরিমাণ", "মোট", tableHeadPaint, tableHeadPaint, fill = false)
             items.forEach { item ->
                 gridRow(item.name, "%.2f".format(item.price), "%.2f".format(item.qty), "%.2f".format(item.total), itemPaint, itemPaint, fill = false)
             }

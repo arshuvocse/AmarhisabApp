@@ -16,9 +16,9 @@ object EscPosEncoder {
     private const val ESC = 0x1B
     private const val GS = 0x1D
 
-    /** Pixels lighter than this (0-255 luminance) print as white. Raised to 215
-     *  so anti-aliased text edges print darker/bolder/sharper on thermal paper. */
-    private const val DARKNESS_THRESHOLD = 215
+    /** Pixels lighter than this (0-255 luminance) print as white. Set to 120
+     *  so anti-aliased text edges stay crisp, thin, and completely free of bold smudging. */
+    private const val DARKNESS_THRESHOLD = 120
 
     fun init(): ByteArray = byteArrayOf(ESC.toByte(), '@'.code.toByte())
 
@@ -123,7 +123,7 @@ object EscPosEncoder {
                             val green = android.graphics.Color.green(pixel)
                             val blue = android.graphics.Color.blue(pixel)
                             val luminance = (red * 0.299 + green * 0.587 + blue * 0.114)
-                            val isBlack = (alpha > 50) && (luminance < 200)
+                            val isBlack = (alpha > 50) && (luminance < DARKNESS_THRESHOLD)
                             if (isBlack) {
                                 slice = slice or (0x80 shr b)
                             }

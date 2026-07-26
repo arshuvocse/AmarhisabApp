@@ -403,47 +403,93 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         function extractStructuredReceipt(printable) {
                             if (!printable) return null;
                             try {
-                                var shopEl = printable.querySelector('.shop-name, .store-name, h1, h2, .company-name, .header-title');
-                                var shopName = shopEl ? (shopEl.innerText || shopEl.textContent || '').trim() : 'আমার হিসাব';
-
-                                var addrEl = printable.querySelector('.shop-address, .address, .store-address');
-                                var address = addrEl ? (addrEl.innerText || addrEl.textContent || '').trim() : '';
-
-                                var phoneEl = printable.querySelector('.shop-phone, .phone, .mobile');
-                                var phone = phoneEl ? (phoneEl.innerText || phoneEl.textContent || '').trim() : '';
-
-                                var invEl = printable.querySelector('.invoice-id, .invoice-no, .voucher-no, .inv-no');
-                                var invoiceNo = invEl ? (invEl.innerText || invEl.textContent || '').trim() : '';
-
-                                var dateEl = printable.querySelector('.date, .invoice-date, .created-at');
-                                var date = dateEl ? (dateEl.innerText || dateEl.textContent || '').trim() : '';
-
-                                var totalEl = printable.querySelector('.total, .grand-total, .net-total, .total-amount');
-                                var total = totalEl ? (totalEl.innerText || totalEl.textContent || '').trim() : '';
-
+                                var shopName = "amarhisab";
+                                var address = "";
+                                var phone = "";
+                                var invoiceNo = "";
+                                var date = "";
+                                var customerName = "";
+                                var total = "0";
+                                var subtotal = "";
+                                var paid = "";
+                                var due = "";
                                 var items = [];
-                                var rows = printable.querySelectorAll('tr');
-                                rows.forEach(function(row) {
-                                    var cols = row.querySelectorAll('td');
-                                    if (cols.length >= 2) {
-                                        var name = (cols[0].innerText || cols[0].textContent || '').trim();
-                                        var qty = (cols[1].innerText || cols[1].textContent || '').trim();
-                                        var price = cols.length >= 3 ? (cols[2].innerText || cols[2].textContent || '').trim() : '';
-                                        var itemTotal = cols.length >= 4 ? (cols[3].innerText || cols[3].textContent || '').trim() : '';
-                                        if (name && name.indexOf('বিবরণ') === -1 && name.indexOf('নাম') === -1 && name.indexOf('Item') === -1) {
+
+                                var headerTd = printable.querySelector('tr:first-child td, h1, h2, .shop-name');
+                                if (headerTd) {
+                                    var lines = (headerTd.innerText || headerTd.textContent || '').split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+                                    if (lines.length > 0) shopName = lines[0];
+                                    if (lines.length > 1) address = lines[1];
+                                }
+
+                                var allRows = Array.from(printable.querySelectorAll('tr'));
+                                var itemHeaderFound = false;
+
+                                allRows.forEach(function(row) {
+                                    var cells = Array.from(row.querySelectorAll('td, th')).map(function(c) {
+                                        return (c.innerText || c.textContent || '').trim();
+                                    });
+                                    if (cells.length === 0) return;
+                                    var rowText = cells.join(' ');
+
+                                    if (rowText.indexOf('মোবাইল') !== -1 || rowText.indexOf('01') !== -1) {
+                                        var pMatch = rowText.match(/01\d{9}/);
+                                        if (pMatch) phone = pMatch[0];
+                                    }
+                                    if (rowText.indexOf('ইনভয়েস') !== -1 || rowText.indexOf('ইনভয়েস') !== -1 || rowText.indexOf('ইনভয়েস') !== -1) {
+                                        var invMatch = rowText.match(/(?:আইডি|no|#)[:\s-]*(\d+)/i);
+                                        if (invMatch) invoiceNo = invMatch[1];
+                                    }
+                                    if (rowText.indexOf('তারিখ') !== -1) {
+                                        var dateParts = rowText.split(/তারিখ[:-]/);
+                                        if (dateParts.length > 1) date = dateParts[1].trim();
+                                    }
+                                    if (rowText.indexOf('ব্যক্তি') !== -1 || rowText.indexOf('কাস্টমার') !== -1 || rowText.indexOf('গ্রাহক') !== -1) {
+                                        var custParts = rowText.split(/[:-]/);
+                                        if (custParts.length > 1 && !customerName) customerName = custParts[custParts.length - 1].trim();
+                                    }
+
+                                    if (cells.indexOf('নাম') !== -1 && (cells.indexOf('মূল্য') !== -1 || cells.indexOf('পরিমাণ') !== -1)) {
+                                        itemHeaderFound = true;
+                                        return;
+                                    }
+
+                                    if (itemHeaderFound && cells.length >= 3 && rowText.indexOf('টোটাল') === -1 && rowText.indexOf('মোট') === -1 && rowText.indexOf('বাকি') === -1 && rowText.indexOf('পেমেন্ট') === -1 && rowText.indexOf('নেট') === -1) {
+                                        var name = cells[0];
+                                        var price = cells[1];
+                                        var qty = cells[2];
+                                        var itemTotal = cells.length >= 4 ? cells[3] : price;
+                                        if (name && name !== 'নাম') {
                                             items.push({ name: name, qty: qty, price: price, total: itemTotal });
                                         }
+                                    }
+
+                                    if (rowText.indexOf('ইনভয়েস মোট') !== -1 || rowText.indexOf('ইনভয়েস মোট') !== -1 || rowText.indexOf('সর্বমোট') !== -1) {
+                                        total = cells[cells.length - 1] || cells[1] || total;
+                                    }
+                                    if (rowText.indexOf('সাব টোটাল') !== -1 || rowText.indexOf('সাবটোটাল') !== -1) {
+                                        subtotal = cells[cells.length - 1] || '';
+                                    }
+                                    if (rowText.indexOf('পেমেন্ট') !== -1 || rowText.indexOf('জমা') !== -1) {
+                                        paid = cells[cells.length - 1] || '';
+                                    }
+                                    if (rowText.indexOf('ইনভয়েস বাকি') !== -1 || rowText.indexOf('নেট বাকি') !== -1 || rowText.indexOf('বাকি') !== -1) {
+                                        if (!due) due = cells[cells.length - 1] || '';
                                     }
                                 });
 
                                 return {
                                     shopName: shopName,
-                                    address: address,
+                                    address: address || "Dhaka",
                                     phone: phone,
                                     invoiceNo: invoiceNo,
                                     date: date,
+                                    customerName: customerName,
                                     items: items,
-                                    total: total,
+                                    total: total.replace(/[^0-9.-]/g, ''),
+                                    subtotal: subtotal.replace(/[^0-9.-]/g, ''),
+                                    paid: paid.replace(/[^0-9.-]/g, ''),
+                                    due: due.replace(/[^0-9.-]/g, ''),
                                     footer: 'ধন্যবাদ! আবার আসবেন।'
                                 };
                             } catch(e) {
@@ -463,98 +509,18 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                 return;
                             }
 
-                            function fallbackToText() {
-                                window.AndroidBridge.printText((printable ? (printable.innerText || printable.textContent) : null) || document.body.innerText);
+                            if (window.AndroidBridge.printReceipt && printable) {
+                                var fallbackObj = {
+                                    shopName: "amarhisab",
+                                    items: [],
+                                    total: "0",
+                                    footer: (printable.innerText || printable.textContent || "").trim()
+                                };
+                                window.AndroidBridge.printReceipt(JSON.stringify(fallbackObj));
+                                return;
                             }
 
-                            var hasSize = printable && printable.offsetWidth > 0 && printable.offsetHeight > 0;
-
-                            if (window.html2canvas && printable && hasSize) {
-                                var captured = false;
-                                function doCapture() {
-                                    if (captured) return;
-                                    captured = true;
-
-                                    printable.setAttribute('data-html2canvas-target', 'true');
-                                    var origWidth = Math.max(printable.offsetWidth, printable.scrollWidth);
-                                    var origHeight = Math.max(printable.offsetHeight, printable.scrollHeight);
-                                    var captureWidth = origWidth + 30;
-                                    var captureHeight = origHeight + 10;
-
-                                    window.html2canvas(printable, {
-                                        scale: 3,
-                                        useCORS: true,
-                                        backgroundColor: '#ffffff',
-                                        width: captureWidth,
-                                        height: captureHeight,
-                                        windowWidth: captureWidth + 100,
-                                        scrollX: 0,
-                                        scrollY: 0,
-                                        onclone: function(clonedDoc) {
-                                            var target = clonedDoc.querySelector('[data-html2canvas-target="true"]') || clonedDoc.body;
-                                            if (target) {
-                                                target.style.setProperty('overflow', 'visible', 'important');
-                                                target.style.setProperty('padding-right', '15px', 'important');
-                                                target.style.setProperty('box-sizing', 'border-box', 'important');
-                                            }
-
-                                            // Whiten table header backgrounds for thermal printers
-                                            function whiten(el) {
-                                                el.style.setProperty('background', '#ffffff', 'important');
-                                                el.style.setProperty('background-color', '#ffffff', 'important');
-                                                el.style.setProperty('color', '#000000', 'important');
-                                            }
-                                            var headerWords = ['নাম', 'মূল্য', 'পরিমাণ', 'মোট'];
-                                            clonedDoc.querySelectorAll('td, th').forEach(function(cell) {
-                                                var txt = (cell.textContent || '').trim();
-                                                if (headerWords.indexOf(txt) !== -1) {
-                                                    var row = cell.closest('tr') || cell;
-                                                    whiten(row);
-                                                    row.querySelectorAll('td, th').forEach(whiten);
-                                                }
-                                            });
-                                            clonedDoc.querySelectorAll('th').forEach(whiten);
-
-                                            // Enhance text contrast and font weight for thermal paper readability
-                                            clonedDoc.querySelectorAll('td, th, span, p, div, b, strong, a, label').forEach(function(el) {
-                                                el.style.setProperty('color', '#000000', 'important');
-                                                el.style.setProperty('font-weight', '600', 'important');
-                                                el.style.setProperty('-webkit-text-stroke', '0.2px #000000', 'important');
-                                            });
-
-                                            clonedDoc.querySelectorAll('table').forEach(function(tbl) {
-                                                tbl.style.setProperty('overflow', 'visible', 'important');
-                                            });
-                                        }
-                                    }).then(function(canvas) {
-                                        printable.removeAttribute('data-html2canvas-target');
-                                        if (!canvas || canvas.width === 0 || canvas.height === 0) {
-                                            console.error("html2canvas produced an empty canvas, falling back to text");
-                                            fallbackToText();
-                                            return;
-                                        }
-                                        var dataUrl = canvas.toDataURL('image/png');
-                                        if (window.AndroidBridge.printBitmap) {
-                                            window.AndroidBridge.printBitmap(dataUrl);
-                                        } else {
-                                            window.AndroidBridge.printBitmapBase64(dataUrl);
-                                        }
-                                    }).catch(function(e) {
-                                        printable.removeAttribute('data-html2canvas-target');
-                                        console.error("html2canvas error:", e);
-                                        fallbackToText();
-                                    });
-                                }
-                                // Wait for web fonts to finish loading (custom Bangla fonts can render
-                                // late/blank otherwise, e.g. the item-table header row) — with a safety
-                                // timeout so a stuck font promise never blocks printing indefinitely.
-                                if (document.fonts && document.fonts.ready) {
-                                    document.fonts.ready.then(doCapture).catch(doCapture);
-                                }
-                                setTimeout(doCapture, 400);
-                            } else {
-                                fallbackToText();
-                            }
+                            window.AndroidBridge.printText((printable ? (printable.innerText || printable.textContent) : null) || document.body.innerText);
                         }
 
                         window.print = function() {
@@ -563,11 +529,13 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         };
 
                         document.addEventListener('click', function(e) {
-                            var btn = e.target.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"]');
+                            var btn = e.target.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"], .print-btn, #print-btn, [class*="print"], [id*="print"]');
                             if (btn) {
                                 var txt = (btn.innerText || btn.textContent || btn.value || '').trim().toLowerCase();
                                 var href = (btn.getAttribute('href') || '').trim().toLowerCase();
                                 var onclickStr = (btn.getAttribute('onclick') || '').toLowerCase();
+                                var className = (btn.className || '').toLowerCase();
+                                var idName = (btn.id || '').toLowerCase();
 
                                 var isViewOrNavigate = href.length > 1 && !href.startsWith('javascript:');
                                 var isViewText = txt.indexOf('দেখুন') !== -1 || txt.indexOf('view') !== -1 || txt.indexOf('চালান') !== -1 || txt.indexOf('show') !== -1 || txt.indexOf('detail') !== -1;
@@ -576,10 +544,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                     return;
                                 }
 
-                                var isExplicitPrintText = txt === 'print' || txt === 'প্রিন্ট' || txt.indexOf('print invoice') !== -1 || txt.indexOf('প্রিন্ট করুন') !== -1;
-                                var isExplicitPrintAction = onclickStr.indexOf('window.print') !== -1 || (btn.id || '').toLowerCase() === 'print-btn';
+                                var isPrintText = txt.indexOf('প্রিন্ট') !== -1 || txt.indexOf('print') !== -1;
+                                var isPrintAction = onclickStr.indexOf('print') !== -1 || className.indexOf('print') !== -1 || idName.indexOf('print') !== -1;
 
-                                if (isExplicitPrintText || isExplicitPrintAction) {
+                                if (isPrintText || isPrintAction) {
                                     console.log("Print element clicked: " + txt);
                                     e.preventDefault();
                                     captureAndPrint();

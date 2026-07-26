@@ -529,29 +529,26 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         };
 
                         document.addEventListener('click', function(e) {
-                            var btn = e.target.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"], .print-btn, #print-btn, [class*="print"], [id*="print"]');
-                            if (btn) {
-                                var txt = (btn.innerText || btn.textContent || btn.value || '').trim().toLowerCase();
-                                var href = (btn.getAttribute('href') || '').trim().toLowerCase();
-                                var onclickStr = (btn.getAttribute('onclick') || '').toLowerCase();
-                                var className = (btn.className || '').toLowerCase();
-                                var idName = (btn.id || '').toLowerCase();
+                            var el = e.target;
+                            var btn = el ? el.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"], .print-btn, #print-btn, [class*="print"], [id*="print"], [onclick*="print"]') : null;
 
-                                var isViewOrNavigate = href.length > 1 && !href.startsWith('javascript:');
-                                var isViewText = txt.indexOf('দেখুন') !== -1 || txt.indexOf('view') !== -1 || txt.indexOf('চালান') !== -1 || txt.indexOf('show') !== -1 || txt.indexOf('detail') !== -1;
+                            var targetText = (el ? (el.innerText || el.textContent || '') : '').trim().toLowerCase();
+                            var btnText = (btn ? (btn.innerText || btn.textContent || btn.value || '') : '').trim().toLowerCase();
 
-                                if (isViewOrNavigate || isViewText) {
-                                    return;
-                                }
+                            var isPrintText = targetText.indexOf('প্রিন্ট') !== -1 || targetText.indexOf('print') !== -1 ||
+                                             btnText.indexOf('প্রিন্ট') !== -1 || btnText.indexOf('print') !== -1;
 
-                                var isPrintText = txt.indexOf('প্রিন্ট') !== -1 || txt.indexOf('print') !== -1;
-                                var isPrintAction = onclickStr.indexOf('print') !== -1 || className.indexOf('print') !== -1 || idName.indexOf('print') !== -1;
+                            var onclickStr = ((btn ? btn.getAttribute('onclick') : '') || (el ? el.getAttribute('onclick') : '') || '').toLowerCase();
+                            var className = ((btn ? btn.className : '') || (el ? el.className : '') || '').toLowerCase();
+                            var idName = ((btn ? btn.id : '') || (el ? el.id : '') || '').toLowerCase();
 
-                                if (isPrintText || isPrintAction) {
-                                    console.log("Print element clicked: " + txt);
-                                    e.preventDefault();
-                                    captureAndPrint();
-                                }
+                            var isPrintAction = onclickStr.indexOf('print') !== -1 || className.indexOf('print') !== -1 || idName.indexOf('print') !== -1;
+
+                            if (isPrintText || isPrintAction) {
+                                console.log("Print button captured: " + (targetText || btnText));
+                                e.preventDefault();
+                                e.stopPropagation();
+                                captureAndPrint();
                             }
                         }, true);
                     })();

@@ -790,7 +790,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         }
     }
 
-    private fun showPrinterActionOptions() {
+    fun showPrinterActionOptions() {
         val isConnected = printerManager.isConnected()
         val hasSaved = printerManager.hasSavedPrinter()
 

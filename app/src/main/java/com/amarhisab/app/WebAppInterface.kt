@@ -68,6 +68,17 @@ class WebAppInterface(
      * If Bluetooth is off, this first shows the system "turn on Bluetooth" prompt,
      * then automatically connects to the saved default printer and prints.
      */
+    private fun openPrinterModalOrSettings() {
+        (context as? MainActivity)?.runOnUiThread {
+            (context as MainActivity).showPrinterActionOptions()
+        } ?: run {
+            val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
+    }
+
     @JavascriptInterface
     fun printReceipt(receiptJson: String) {
         Log.d(TAG, "printReceipt() called from JS, payload=$receiptJson")
@@ -75,17 +86,14 @@ class WebAppInterface(
             try {
                 val json = JSONObject(receiptJson)
                 if (!printerManager.hasSavedPrinter()) {
-                    showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
-                    val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
+                    showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে প্রিন্টার সিলেক্ট করুন।", isError = true)
+                    openPrinterModalOrSettings()
                     return@runWithBluetoothReady
                 }
                 printerManager.printReceipt(json)
             } catch (e: Exception) {
                 Log.e(TAG, "printReceipt failed", e)
-                showToast("প্রিন্ট করতে সমস্যা হয়েছে: ${e.message}")
+                showToast("প্রিন্ট করতে সমস্যা হয়েছে: ${e.message}", isError = true)
             }
         }
     }
@@ -96,11 +104,8 @@ class WebAppInterface(
         Log.d(TAG, "printText() called from JS")
         runWithBluetoothReady {
             if (!printerManager.hasSavedPrinter()) {
-                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
-                val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
+                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে প্রিন্টার সিলেক্ট করুন।", isError = true)
+                openPrinterModalOrSettings()
                 return@runWithBluetoothReady
             }
             printerManager.printPlainText(text)
@@ -113,11 +118,8 @@ class WebAppInterface(
         Log.d(TAG, "printBitmapBase64() called from JS")
         runWithBluetoothReady {
             if (!printerManager.hasSavedPrinter()) {
-                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে সেটিংস থেকে একটি প্রিন্টার সিলেক্ট করুন।")
-                val intent = Intent(context, PrinterSettingsActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
+                showToast("কোনো ব্লুটুথ প্রিন্টার সেভ করা নেই। আগে প্রিন্টার সিলেক্ট করুন।", isError = true)
+                openPrinterModalOrSettings()
                 return@runWithBluetoothReady
             }
             printerManager.printBitmapBase64(base64Image)

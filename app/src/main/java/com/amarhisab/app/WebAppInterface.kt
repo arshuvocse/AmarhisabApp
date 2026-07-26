@@ -129,7 +129,6 @@ class WebAppInterface(
         printBitmapBase64(base64Image)
     }
 
-    /** Ensures Bluetooth is on (prompting the user if needed) before running a print action. */
     private fun runWithBluetoothReady(action: () -> Unit) {
         if (printerManager.isBluetoothEnabled()) {
             action()
@@ -139,7 +138,7 @@ class WebAppInterface(
             if (granted) {
                 action()
             } else {
-                showToast("Print korte Bluetooth chalu thakte hobe")
+                showToast("প্রিন্ট করতে ব্লুটুথ চালু থাকা প্রয়োজন", isError = true)
             }
         }
     }

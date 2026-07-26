@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_glossy_dialog"
+    android:padding="22dp">
+
+    <!-- Top Glossy Icon Container -->
+    <LinearLayout
+        android:id="@+id/dialogIconContainer"
+        android:layout_width="68dp"
+        android:layout_height="68dp"
+        android:layout_gravity="center_horizontal"
+        android:gravity="center"
+        android:background="@drawable/bg_glossy_badge_blue"
+        android:layout_marginBottom="14dp">
+
+        <ImageView
+            android:id="@+id/dialogIcon"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_bluetooth_connected"
+            app:tint="#3B82F6"
+            android:contentDescription="Bluetooth Rationale Icon" />
+    </LinearLayout>
+
+    <!-- Dialog Title -->
+    <TextView
+        android:id="@+id/dialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="ব্লুটুথ অনুমতি ও সংযোগ"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Trust Badge -->
+    <TextView
+        android:id="@+id/dialogTrustBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="🔒 ১০০% নিরাপদ • ক্যাশ মেমো প্রিন্টিং"
+        android:textColor="#3B82F6"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp"
+        android:background="@drawable/bg_glossy_badge_blue"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Description Text -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="আমার হিসাব অ্যাপে ব্লুটুথ থার্মাল প্রিন্টারের মাধ্যমে ক্যাশ মেমো, রসিদ এবং ইনভয়েস সরাসরি প্রিন্ট করার জন্য ব্লুটুথ অনুমতি প্রয়োজন।"
+        android:textColor="#E2E8F0"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:lineSpacingExtra="3dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Privacy & Feature Trust Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_glossy_card"
+        android:padding="14dp"
+        android:layout_marginBottom="20dp">
+
+        <!-- Item 1: Receipt printing -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_check_circle"
+                app:tint="#10B981"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="Feature icon" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="থার্মাল প্রিন্টারে সরাসরি মেমো ও রসিদ প্রিন্টিং"
+                android:textColor="#F8FAFC"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Item 2: Data privacy -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_check_circle"
+                app:tint="#10B981"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="Privacy icon" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="আপনার কোনো ব্যক্তিগত ডেটা এক্সেস করা হয় না"
+                android:textColor="#F8FAFC"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Item 3: Quick connection -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_check_circle"
+                app:tint="#10B981"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="Connection icon" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="এক ক্লিকেই প্রিন্টারের সাথে কানেকশন সুবিধা"
+                android:textColor="#F8FAFC"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/btnAllowBluetooth"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="অনুমতি দিন ও চালু করুন"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_glossy_btn_primary"
+            app:backgroundTint="@null"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/btnCancelBluetooth"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:text="পরে করবো"
+            android:textColor="#94A3B8"
+            android:textSize="13sp"
+            android:background="?android:attr/selectableItemBackground"
+            app:backgroundTint="@null" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -46,14 +46,43 @@ object EscPosEncoder {
     fun cutPaper(): ByteArray = byteArrayOf(GS.toByte(), 'V'.code.toByte(), 0x41, 0x00)
 
     /**
-     * Converts a monochrome-ready Bitmap into ESC/POS raster bit-image commands (GS v 0).
-     * Slices the bitmap into height chunks (max 160px) to prevent thermal printer buffer overflow.
+     * Sets heating parameters (print density / darkness) for ESC/POS thermal printers.
+     * Command: ESC 7 n1 n2 n3 (Heating dots / Heating time / Heating interval)
      */
-    fun bitmapToRaster(bitmap: Bitmap, chunkHeight: Int = 160): ByteArray {
+    fun setPrintDensity(heatingDots: Int = 7, heatingTime: Int = 80, heatingInterval: Int = 2): ByteArray {
+        return byteArrayOf(
+            ESC.toByte(),
+            '7'.code.toByte(),
+            heatingDots.coerceIn(0, 255).toByte(),
+            heatingTime.coerceIn(0, 255).toByte(),
+            heatingInterval.coerceIn(0, 255).toByte()
+        )
+    }
+
+    /**
+     * Converts a monochrome-ready Bitmap into ESC/POS raster bit-image commands (GS v 0).
+     * Supports optional Floyd–Steinberg error-diffusion dithering for crisp, anti-aliased Bangla text.
+     */
+    fun bitmapToRaster(
+        bitmap: Bitmap,
+        chunkHeight: Int = 160,
+        dither: Boolean = true
+    ): ByteArray {
         val width = bitmap.width
         val totalHeight = bitmap.height
         val bytesPerRow = (width + 7) / 8
         val out = ByteArrayOutputStream()
+
+        val buffer = if (dither) {
+            Array(totalHeight) { y ->
+                FloatArray(width) { x ->
+                    val pixel = bitmap.getPixel(x, y)
+                    (android.graphics.Color.red(pixel) * 0.299f +
+                            android.graphics.Color.green(pixel) * 0.587f +
+                            android.graphics.Color.blue(pixel) * 0.114f)
+                }
+            }
+        } else null
 
         var currentY = 0
         while (currentY < totalHeight) {
@@ -72,11 +101,27 @@ object EscPosEncoder {
                 var bitIndex = 0
                 var currentByte = 0
                 for (x in 0 until width) {
-                    val pixel = bitmap.getPixel(x, y)
-                    val luminance = (android.graphics.Color.red(pixel) * 0.299 +
-                            android.graphics.Color.green(pixel) * 0.587 +
-                            android.graphics.Color.blue(pixel) * 0.114)
-                    val isBlack = luminance < DARKNESS_THRESHOLD
+                    val isBlack: Boolean
+                    if (dither && buffer != null) {
+                        val oldLum = buffer[y][x].coerceIn(0f, 255f)
+                        val newLum = if (oldLum < 128f) 0f else 255f
+                        isBlack = (newLum == 0f)
+                        val error = oldLum - newLum
+
+                        if (x + 1 < width) buffer[y][x + 1] += error * 7f / 16f
+                        if (y + 1 < totalHeight) {
+                            if (x > 0) buffer[y + 1][x - 1] += error * 3f / 16f
+                            buffer[y + 1][x] += error * 5f / 16f
+                            if (x + 1 < width) buffer[y + 1][x + 1] += error * 1f / 16f
+                        }
+                    } else {
+                        val pixel = bitmap.getPixel(x, y)
+                        val luminance = (android.graphics.Color.red(pixel) * 0.299 +
+                                android.graphics.Color.green(pixel) * 0.587 +
+                                android.graphics.Color.blue(pixel) * 0.114)
+                        isBlack = (luminance < DARKNESS_THRESHOLD)
+                    }
+
                     if (isBlack) currentByte = currentByte or (0x80 shr bitIndex)
                     bitIndex++
                     if (bitIndex == 8) {

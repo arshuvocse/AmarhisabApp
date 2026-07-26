@@ -276,23 +276,23 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
         }
     }
 
-    /** Builds a formatted receipt from JSON and sends it through the bit-image engine. */
+    /** Builds a formatted receipt from JSON using native 384px ReceiptBitmapRenderer and dithered ESC/POS encoder. */
     fun printReceipt(receipt: JSONObject) {
         executor.execute {
             try {
                 if (!ensureConnectedToSaved()) return@execute
                 showToast("প্রিন্ট হচ্ছে...")
 
-                val bitmap = BitmapPrintRenderer.renderReceiptToBitmap(receipt)
-                val scaled = BitmapPrintRenderer.scaleToPrinterWidth(bitmap)
-                debugSaveBitmap(scaled, "printReceipt")
-                if (!BitmapPrintRenderer.hasVisibleContent(scaled)) {
+                val bitmap = ReceiptBitmapRenderer.renderReceipt(receipt, context)
+                debugSaveBitmap(bitmap, "printReceipt")
+                if (!BitmapPrintRenderer.hasVisibleContent(bitmap)) {
                     Log.w(TAG, "printReceipt aborted: rendered bitmap has no visible content")
                     showToast("প্রিন্ট বাতিল: কোনো কনটেন্ট পাওয়া যায়নি", isError = true)
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
-                writeSafely(EscPosEncoder.bitmapToRaster(scaled))
+                writeSafely(EscPosEncoder.setPrintDensity(heatingDots = 7, heatingTime = 80, heatingInterval = 2))
+                writeSafely(EscPosEncoder.bitmapToRaster(bitmap, dither = true))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
                 showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)

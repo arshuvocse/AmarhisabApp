@@ -36,6 +36,7 @@ import android.widget.TextView
 import android.widget.ImageView
 import android.net.Network
 import android.net.NetworkRequest
+import com.amarhisab.app.utils.BluetoothPermissionHelper
 
 class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequester {
 
@@ -51,6 +52,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     private val siteUrl by lazy { getString(R.string.site_url) }
 
     private var pendingBluetoothResult: ((Boolean) -> Unit)? = null
+    private var pendingBtPermissionAction: ((Boolean) -> Unit)? = null
 
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -60,12 +62,30 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         pendingBluetoothResult = null
     }
 
-    private val bluetoothPermissions: Array<String>
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+    private val requestBtPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            if (!printerManager.isBluetoothEnabled()) {
+                requestEnableBluetoothSystem { enabled ->
+                    pendingBtPermissionAction?.invoke(enabled)
+                    pendingBtPermissionAction = null
+                }
+            } else {
+                pendingBtPermissionAction?.invoke(true)
+                pendingBtPermissionAction = null
+            }
         } else {
-            arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN)
+            com.amarhisab.app.utils.CustomToast.show(
+                this,
+                "প্রিন্টার ব্যবহার করতে ব্লুটুথ অনুমতি প্রয়োজন",
+                isError = true
+            )
+            pendingBtPermissionAction?.invoke(false)
+            pendingBtPermissionAction = null
         }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -164,11 +184,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     private fun requestBluetoothPermissionsIfNeeded() {
-        val missing = bluetoothPermissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), REQUEST_BT_PERMISSIONS)
+        if (!BluetoothPermissionHelper.hasBluetoothPermissions(this)) {
+            ensureBluetoothReadyWithRationale { ready ->
+                if (ready) updateFabState()
+            }
         }
     }
 
@@ -381,9 +400,68 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                             return document.body;
                         }
 
+                        function extractStructuredReceipt(printable) {
+                            if (!printable) return null;
+                            try {
+                                var shopEl = printable.querySelector('.shop-name, .store-name, h1, h2, .company-name, .header-title');
+                                var shopName = shopEl ? (shopEl.innerText || shopEl.textContent || '').trim() : 'আমার হিসাব';
+
+                                var addrEl = printable.querySelector('.shop-address, .address, .store-address');
+                                var address = addrEl ? (addrEl.innerText || addrEl.textContent || '').trim() : '';
+
+                                var phoneEl = printable.querySelector('.shop-phone, .phone, .mobile');
+                                var phone = phoneEl ? (phoneEl.innerText || phoneEl.textContent || '').trim() : '';
+
+                                var invEl = printable.querySelector('.invoice-id, .invoice-no, .voucher-no, .inv-no');
+                                var invoiceNo = invEl ? (invEl.innerText || invEl.textContent || '').trim() : '';
+
+                                var dateEl = printable.querySelector('.date, .invoice-date, .created-at');
+                                var date = dateEl ? (dateEl.innerText || dateEl.textContent || '').trim() : '';
+
+                                var totalEl = printable.querySelector('.total, .grand-total, .net-total, .total-amount');
+                                var total = totalEl ? (totalEl.innerText || totalEl.textContent || '').trim() : '';
+
+                                var items = [];
+                                var rows = printable.querySelectorAll('tr');
+                                rows.forEach(function(row) {
+                                    var cols = row.querySelectorAll('td');
+                                    if (cols.length >= 2) {
+                                        var name = (cols[0].innerText || cols[0].textContent || '').trim();
+                                        var qty = (cols[1].innerText || cols[1].textContent || '').trim();
+                                        var price = cols.length >= 3 ? (cols[2].innerText || cols[2].textContent || '').trim() : '';
+                                        var itemTotal = cols.length >= 4 ? (cols[3].innerText || cols[3].textContent || '').trim() : '';
+                                        if (name && name.indexOf('বিবরণ') === -1 && name.indexOf('নাম') === -1 && name.indexOf('Item') === -1) {
+                                            items.push({ name: name, qty: qty, price: price, total: itemTotal });
+                                        }
+                                    }
+                                });
+
+                                return {
+                                    shopName: shopName,
+                                    address: address,
+                                    phone: phone,
+                                    invoiceNo: invoiceNo,
+                                    date: date,
+                                    items: items,
+                                    total: total,
+                                    footer: 'ধন্যবাদ! আবার আসবেন।'
+                                };
+                            } catch(e) {
+                                console.error("extractStructuredReceipt error:", e);
+                                return null;
+                            }
+                        }
+
                         function captureAndPrint() {
                             if (!window.AndroidBridge) return;
                             var printable = pickPrintable();
+
+                            var structured = extractStructuredReceipt(printable);
+                            if (structured && structured.items && structured.items.length > 0 && window.AndroidBridge.printReceipt) {
+                                console.log("Sending structured receipt JSON directly to native ReceiptBitmapRenderer");
+                                window.AndroidBridge.printReceipt(JSON.stringify(structured));
+                                return;
+                            }
 
                             function fallbackToText() {
                                 window.AndroidBridge.printText((printable ? (printable.innerText || printable.textContent) : null) || document.body.innerText);
@@ -541,6 +619,26 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
             override fun onReceivedError(
                 view: WebView?,
+                request: android.webkit.WebResourceRequest?,
+                error: android.webkit.WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request?.isForMainFrame == true) {
+                    if (!isNetworkAvailable()) {
+                        offlineView.visibility = View.VISIBLE
+                    } else {
+                        com.amarhisab.app.utils.CustomToast.show(
+                            this@MainActivity,
+                            "সার্ভারে সংযোগে সমস্যা হচ্ছে। পেজ রিফ্রেশ করুন।",
+                            isError = true
+                        )
+                    }
+                }
+            }
+
+            @Suppress("DEPRECATION")
+            override fun onReceivedError(
+                view: WebView?,
                 errorCode: Int,
                 description: String?,
                 failingUrl: String?
@@ -643,11 +741,42 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     /**
+     * Ensures Bluetooth permission is granted and Bluetooth is enabled, showing a reassuring
+     * trust rationale dialog BEFORE requesting system permission or turning on Bluetooth.
+     */
+    fun ensureBluetoothReadyWithRationale(onResult: (Boolean) -> Unit) {
+        val hasPermissions = BluetoothPermissionHelper.hasBluetoothPermissions(this)
+        val isEnabled = printerManager.isBluetoothEnabled()
+
+        if (hasPermissions && isEnabled) {
+            onResult(true)
+            return
+        }
+
+        BluetoothPermissionHelper.showRationaleDialog(
+            context = this,
+            onAllow = {
+                if (!hasPermissions) {
+                    pendingBtPermissionAction = onResult
+                    requestBtPermissionsLauncher.launch(BluetoothPermissionHelper.getRequiredPermissions())
+                } else if (!isEnabled) {
+                    requestEnableBluetoothSystem(onResult)
+                } else {
+                    onResult(true)
+                }
+            },
+            onCancel = {
+                onResult(false)
+            }
+        )
+    }
+
+    /**
      * Shows the system "turn on Bluetooth" dialog (one tap for the user)
      * and reports back whether it ended up enabled.
      */
     @SuppressLint("MissingPermission")
-    override fun requestEnableBluetooth(onResult: (Boolean) -> Unit) {
+    private fun requestEnableBluetoothSystem(onResult: (Boolean) -> Unit) {
         val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
         if (adapter == null) {
             onResult(false)
@@ -661,10 +790,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
     }
 
-    /**
-     * Updates the Floating Action Button icon and background color dynamically based on
-     * printer connection state.
-     */
+    override fun requestEnableBluetooth(onResult: (Boolean) -> Unit) {
+        ensureBluetoothReadyWithRationale(onResult)
+    }
+
     /**
      * Updates the Floating Action Button icon and background color dynamically based on
      * printer connection state.
@@ -687,16 +816,12 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     private fun handleFabClick() {
-        if (!printerManager.isBluetoothEnabled()) {
-            requestEnableBluetooth { enabled ->
-                if (enabled) {
-                    showPrinterActionOptions()
-                } else {
-                    com.amarhisab.app.utils.CustomToast.show(this, "Bluetooth চালু করা প্রয়োজন", isError = true)
-                }
+        ensureBluetoothReadyWithRationale { ready ->
+            if (ready) {
+                showPrinterActionOptions()
+            } else {
+                com.amarhisab.app.utils.CustomToast.show(this, "ব্লুটুথ অনুমতি ও অন থাকা প্রয়োজন", isError = true)
             }
-        } else {
-            showPrinterActionOptions()
         }
     }
 

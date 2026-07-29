@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base dark blue gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:startColor="#3457C9"
+                android:centerColor="#2646AE"
+                android:endColor="#1B3688"
+                android:type="linear" />
+            <corners android:radius="24dp" />
+            <stroke
+                android:width="1.5dp"
+                android:color="#40FFFFFF" />
+        </shape>
+    </item>
+
+    <!-- Glossy highlight sweep across the top -->
+    <item android:top="0dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#55FFFFFF"
+                android:centerColor="#12FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:type="linear" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+</layer-list>

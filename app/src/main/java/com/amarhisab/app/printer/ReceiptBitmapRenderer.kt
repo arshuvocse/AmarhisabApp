@@ -95,7 +95,7 @@ object ReceiptBitmapRenderer {
         val invoiceNo = receipt.optString("invoiceNo", receipt.optString("invoice_no", receipt.optString("voucher_no", "")))
         val date = receipt.optString("date", receipt.optString("created_at", ""))
         val customerName = receipt.optString("customerName", receipt.optString("customer_name", ""))
-        val footer = receipt.optString("footer", receipt.optString("note", "ধন্যবাদ! আবার আসবেন।"))
+        val footer = receipt.optString("footer", receipt.optString("note", "Developed By"))
 
         var measuredHeight = 25
 

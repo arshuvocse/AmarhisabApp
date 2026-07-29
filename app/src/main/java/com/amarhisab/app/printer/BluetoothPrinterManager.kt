@@ -35,6 +35,13 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
     private var socket: BluetoothSocket? = null
     private var outputStream: OutputStream? = null
 
+    /** Guards against two raster print jobs firing back-to-back with no gap,
+     *  which can desync the printer's buffer and print stray garbage bytes
+     *  (e.g. a literal "X") between the two receipts. */
+    @Volatile
+    private var lastPrintJobFinishedAt = 0L
+    private val minGapBetweenPrintJobsMs = 800L
+
     var onConnectionStateChanged: (() -> Unit)? = null
 
     private val prefs: SharedPreferences =
@@ -222,23 +229,15 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
     /** Dumps the exact bitmap about to be sent to the printer to a pullable file, for debugging what actually printed. */
     private fun debugSaveBitmap(bitmap: Bitmap, tag: String) {
         try {
-            val timestamp = System.currentTimeMillis()
             val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
                 ?: context.getExternalFilesDir(null)
                 ?: context.cacheDir
 
             dir.mkdirs()
-            val file = File(dir, "print_debug_${tag}_${timestamp}.png")
-            FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-
             val latestFile = File(dir, "latest_print_debug.png")
             FileOutputStream(latestFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
 
-            Log.d(TAG, "==========================================================")
-            Log.d(TAG, "DEBUG PRINT BITMAP SAVED (${bitmap.width}x${bitmap.height}px):")
-            Log.d(TAG, "File Path: ${file.absolutePath}")
-            Log.d(TAG, "Latest File: ${latestFile.absolutePath}")
-            Log.d(TAG, "==========================================================")
+            Log.d(TAG, "DEBUG PRINT BITMAP SAVED (${bitmap.width}x${bitmap.height}px): ${latestFile.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "debugSaveBitmap failed", e)
         }
@@ -276,14 +275,21 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
         }
     }
 
-    /** Builds a formatted receipt from JSON using native 384px ReceiptBitmapRenderer and dithered ESC/POS encoder. */
+    /** Builds a formatted receipt from JSON using native 384px BitmapPrintRenderer and dithered ESC/POS encoder. */
     fun printReceipt(receipt: JSONObject) {
         executor.execute {
             try {
                 if (!ensureConnectedToSaved()) return@execute
+                awaitPrinterSettle()
                 showToast("প্রিন্ট হচ্ছে...")
 
-                val bitmap = ReceiptBitmapRenderer.renderReceipt(receipt, context)
+                val rawBitmap = try {
+                    BitmapPrintRenderer.renderReceiptToBitmap(receipt)
+                } catch (_: Exception) {
+                    ReceiptBitmapRenderer.renderReceipt(receipt, context)
+                }
+                val bitmap = BitmapPrintRenderer.cleanColoredBackgrounds(rawBitmap)
+
                 debugSaveBitmap(bitmap, "printReceipt")
                 if (!BitmapPrintRenderer.hasVisibleContent(bitmap)) {
                     Log.w(TAG, "printReceipt aborted: rendered bitmap has no visible content")
@@ -291,12 +297,14 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
-                writeSafely(EscPosEncoder.setPrintDensity(heatingDots = 7, heatingTime = 80, heatingInterval = 2))
+                writeSafely(EscPosEncoder.setPrintDensity(heatingDots = 8, heatingTime = 120, heatingInterval = 2))
                 writeSafely(EscPosEncoder.bitmapToRaster(bitmap, dither = true))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
+                markPrintJobFinished()
                 showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)
             } catch (e: Exception) {
+                markPrintJobFinished()
                 Log.e(TAG, "printReceipt failed", e)
                 showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}", isError = true)
                 printErrorToPaper("printReceipt", e)
@@ -304,26 +312,31 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
         }
     }
 
-    /** Renders a base64 image via the bitmap renderer and prints it using the ESC * bit-image command. */
+    /** Renders a base64 image via the bitmap renderer and prints it using high quality dithered bit-image commands. */
     fun printBitmapBase64(base64Image: String) {
         executor.execute {
             try {
                 if (!ensureConnectedToSaved()) return@execute
+                awaitPrinterSettle()
                 showToast("প্রিন্ট হচ্ছে...")
-                val bitmap = BitmapPrintRenderer.decodeBase64(base64Image) ?: return@execute
-                val scaled = BitmapPrintRenderer.scaleToPrinterWidth(bitmap)
-                debugSaveBitmap(scaled, "printBitmapBase64")
-                if (!BitmapPrintRenderer.hasVisibleContent(scaled)) {
+                val decoded = BitmapPrintRenderer.decodeBase64(base64Image) ?: return@execute
+                val scaled = BitmapPrintRenderer.scaleToPrinterWidth(decoded)
+                val cleanBitmap = scaled
+                debugSaveBitmap(cleanBitmap, "printBitmapBase64")
+                if (!BitmapPrintRenderer.hasVisibleContent(cleanBitmap)) {
                     Log.w(TAG, "printBitmapBase64 aborted: captured bitmap has no visible content")
                     showToast("প্রিন্ট বাতিল: স্ক্রিনশট ফাঁকা এসেছে", isError = true)
                     return@execute
                 }
                 writeSafely(EscPosEncoder.init())
-                writeSafely(EscPosEncoder.bitmapToRaster(scaled))
+                writeSafely(EscPosEncoder.setPrintDensity(heatingDots = 8, heatingTime = 120, heatingInterval = 2))
+                writeSafely(EscPosEncoder.bitmapToRaster(cleanBitmap, dither = true))
                 writeSafely(EscPosEncoder.newLine(3))
                 writeSafely(EscPosEncoder.cutPaper())
+                markPrintJobFinished()
                 showToast("প্রিন্ট সফল হয়েছে!", isSuccess = true)
             } catch (e: Exception) {
+                markPrintJobFinished()
                 Log.e(TAG, "printBitmapBase64 failed", e)
                 showToast("প্রিন্ট ব্যর্থ হয়েছে: ${e.message}", isError = true)
                 printErrorToPaper("printBitmapBase64", e)
@@ -355,6 +368,20 @@ class BluetoothPrinterManager private constructor(private val context: Context) 
         } catch (e: Exception) {
             Log.e(TAG, "printErrorToPaper itself failed", e)
         }
+    }
+
+    /** Blocks (on the executor thread) until enough time has passed since the previous
+     *  print job finished, so the printer's buffer has settled before a new raster
+     *  stream starts — prevents byte-stream desync between back-to-back print jobs. */
+    private fun awaitPrinterSettle() {
+        val elapsed = System.currentTimeMillis() - lastPrintJobFinishedAt
+        if (elapsed in 0 until minGapBetweenPrintJobsMs) {
+            Thread.sleep(minGapBetweenPrintJobsMs - elapsed)
+        }
+    }
+
+    private fun markPrintJobFinished() {
+        lastPrintJobFinishedAt = System.currentTimeMillis()
     }
 
     private fun writeSafely(bytes: ByteArray) {

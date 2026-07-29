@@ -7,6 +7,7 @@ import android.webkit.JavascriptInterface
 import android.widget.Toast
 import com.amarhisab.app.printer.BluetoothPrinterManager
 import com.amarhisab.app.printer.PrinterSettingsActivity
+import com.amarhisab.app.utils.BluetoothPermissionHelper
 import org.json.JSONObject
 
 /**
@@ -132,15 +133,19 @@ class WebAppInterface(
     }
 
     private fun runWithBluetoothReady(action: () -> Unit) {
-        if (printerManager.isBluetoothEnabled()) {
+        val hasPermission = BluetoothPermissionHelper.hasBluetoothPermissions(context)
+        val isEnabled = printerManager.isBluetoothEnabled()
+
+        if (hasPermission && isEnabled) {
             action()
             return
         }
+
         enableRequester.requestEnableBluetooth { granted ->
             if (granted) {
                 action()
             } else {
-                showToast("প্রিন্ট করতে ব্লুটুথ চালু থাকা প্রয়োজন", isError = true)
+                showToast("প্রিন্ট করতে ব্লুটুথ অন এবং পারমিশন প্রয়োজন", isError = true)
             }
         }
     }

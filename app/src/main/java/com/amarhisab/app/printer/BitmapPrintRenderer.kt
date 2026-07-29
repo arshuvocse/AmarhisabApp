@@ -34,10 +34,55 @@ object BitmapPrintRenderer {
 
     fun scaleToPrinterWidth(bitmap: Bitmap, targetWidth: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
         if (bitmap.width == targetWidth) return bitmap
-        if (bitmap.width <= targetWidth) return bitmap
         val ratio = targetWidth.toFloat() / bitmap.width
         val targetHeight = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false)
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    }
+
+    /**
+     * Removes colored background fills (like green headers on web pages) by converting them to
+     * clean white background, while preserving text anti-aliasing and grayscale details for
+     * ultra-sharp, high-quality thermal printing.
+     */
+    fun cleanColoredBackgrounds(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val cleanBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val alpha = (pixel shr 24) and 0xFF
+
+            if (alpha < 50) {
+                pixels[i] = Color.WHITE
+                continue
+            }
+
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+
+            val maxC = maxOf(r, maxOf(g, b))
+            val minC = minOf(r, minOf(g, b))
+            val isColored = (maxC - minC) > 20
+
+            if (isColored) {
+                val luminance = (r * 0.299 + g * 0.587 + b * 0.114).toInt()
+                if (luminance > 160) {
+                    pixels[i] = Color.WHITE
+                } else {
+                    pixels[i] = Color.BLACK
+                }
+            } else {
+                pixels[i] = pixel
+            }
+        }
+
+        cleanBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        return cleanBitmap
     }
 
     /**
@@ -115,59 +160,83 @@ object BitmapPrintRenderer {
      * Footer (Software Developed By www.softhostit.com)
      */
     fun renderReceiptToBitmap(receipt: org.json.JSONObject, width: Int = DEFAULT_PRINTER_DOT_WIDTH): Bitmap {
+        val scale = 2.0f
+        val renderWidth = (width * scale).toInt()
+
         val titlePaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 19f
+            textSize = 40f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val headerPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 15f
+            textSize = 30f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val boldHeaderPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 15f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 30f
+            typeface = Typeface.DEFAULT
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val itemPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 15f
+            textSize = 30f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val tableHeadPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 15f
+            textSize = 32f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val footerPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 13f
+            textSize = 26f
             typeface = Typeface.DEFAULT
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val footerBoldPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 13f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 26f
+            typeface = Typeface.DEFAULT
             isAntiAlias = true
+            isSubpixelText = true
+            isLinearText = true
+            hinting = Paint.HINTING_ON
         }
 
         val borderPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 1.5f
+            strokeWidth = 3.0f
             isAntiAlias = true
         }
 
@@ -197,8 +266,8 @@ object BitmapPrintRenderer {
         val netDue = receipt.optDouble("netDue", receipt.optDouble("total_due", 0.0))
 
         val footerText = receipt.optString("footer", "")
-        val devLabel = if (footerText.isNotBlank()) footerText else "Software Developed By"
-        val webUrl = "www.softhostit.com"
+        val devLabel = if (footerText.isNotBlank()) footerText else "Developed By"
+        val webUrl = receipt.optString("website", receipt.optString("webUrl", "www.amarhisab.com"))
 
         data class ReceiptItem(val name: String, val price: Double, val qty: Double, val total: Double)
 
@@ -218,16 +287,16 @@ object BitmapPrintRenderer {
         val totalQtyStr = "%.2f".format(receipt.optDouble("invoiceTotalQty", items.sumOf { it.qty }))
         val totalAmountStr = "%.2f".format(receipt.optDouble("invoiceTotalAmount", items.sumOf { it.total }))
 
-        // Outer box + item-table column geometry (Safe margin for 58mm thermal printhead fit)
-        val leftMargin = 12f
-        val rightMargin = 34f
+        // Outer box + item-table column geometry (2x super-sampled for 100% crisp anti-aliased print)
+        val leftMargin = 24f
+        val rightMargin = 68f
         val margin = leftMargin
         val boxLeft = leftMargin
-        val boxRight = width - rightMargin
+        val boxRight = renderWidth - rightMargin
         val boxWidth = boxRight - boxLeft
-        val padX = 5f
-        val padY = 4f
-        val rowH = 28f
+        val padX = 10f
+        val padY = 8f
+        val rowH = 56f
 
         val col1W = boxWidth * 0.40f
         val col2W = boxWidth * 0.20f
@@ -255,8 +324,6 @@ object BitmapPrintRenderer {
                     StaticLayout(text, paint, safeWidth, align, 1.0f, 0f, false)
                 }
             } catch (e: Exception) {
-                // Narrow columns wrapping Bangla conjunct clusters can crash StaticLayout's
-                // line-breaker on some Android versions; fall back to an unwrapped single line.
                 val fallbackWidth = maxOf(safeWidth, paint.measureText(text).toInt() + 1)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     StaticLayout.Builder.obtain(text, 0, text.length, paint, fallbackWidth)
@@ -271,11 +338,6 @@ object BitmapPrintRenderer {
             }
         }
 
-        /**
-         * Draws the full receipt (or, with [canvas] == null, only measures it) and returns the
-         * total content height. Called once to size the bitmap and once to draw it, so the two
-         * passes share the exact same row-by-row logic and can never disagree on layout.
-         */
         fun pass(canvas: Canvas?): Float {
             var y = margin
 
@@ -293,7 +355,6 @@ object BitmapPrintRenderer {
                 canvas?.drawText(text, x.coerceAtLeast(colStart), top - paint.fontMetrics.ascent, paint)
             }
 
-            // Full-width row, single block of (possibly wrapping) text
             fun singleRow(text: String, paint: TextPaint, align: Layout.Alignment) {
                 val top = y
                 val contentTop = top + padY
@@ -306,7 +367,6 @@ object BitmapPrintRenderer {
                 hLine(y)
             }
 
-            // Full-width row split into two independent halves (person/invoice ID)
             fun twoColRow(left: String, right: String, paint: TextPaint) {
                 val top = y
                 val contentTop = top + padY
@@ -322,7 +382,6 @@ object BitmapPrintRenderer {
                 hLine(y)
             }
 
-            // Label left, value right, on one line (balance summary rows)
             fun labelValueRow(label: String, value: String, paint: TextPaint) {
                 val top = y + padY
                 canvas?.drawText(label, boxLeft + padX, top - paint.fontMetrics.ascent, paint)
@@ -332,7 +391,6 @@ object BitmapPrintRenderer {
                 hLine(y)
             }
 
-            // The নাম | মূল্য | পরিমাণ | মোট grid used by the table header, item rows, charges and the invoice-total row
             fun gridRow(col1: String, col2: String, col3: String, col4: String, labelPaint: TextPaint, valuePaint: TextPaint, fill: Boolean) {
                 val top = y
                 val contentTop = top + padY
@@ -354,7 +412,6 @@ object BitmapPrintRenderer {
                 hLine(y)
             }
 
-            // 1-6. Shop header
             singleRow(shopName, titlePaint, Layout.Alignment.ALIGN_CENTER)
             singleRow(address, headerPaint, Layout.Alignment.ALIGN_CENTER)
             singleRow("মোবাইল: - $mobile", headerPaint, Layout.Alignment.ALIGN_NORMAL)
@@ -362,18 +419,21 @@ object BitmapPrintRenderer {
             singleRow("তারিখ:- $date", headerPaint, Layout.Alignment.ALIGN_NORMAL)
             singleRow(":- $seller", headerPaint, Layout.Alignment.ALIGN_NORMAL)
 
-            // 7-8. Item table
             gridRow("নাম", "মূল্য", "পরিমাণ", "মোট", tableHeadPaint, tableHeadPaint, fill = false)
             items.forEach { item ->
                 gridRow(item.name, "%.2f".format(item.price), "%.2f".format(item.qty), "%.2f".format(item.total), itemPaint, itemPaint, fill = false)
             }
 
-            // 9. Charges & discounts
-            gridRow("ডিসকাউন্ট ----", "--", "--", "%.2f".format(discount), headerPaint, headerPaint, fill = false)
-            gridRow("ভ্যাট ----", "--", "--", "%.2f".format(vat), headerPaint, headerPaint, fill = false)
-            gridRow("ট্রান্সপোর্টেশন খরচ & শ্রমিকের খরচ ----", "--", "--", "%.2f".format(transportCost), headerPaint, headerPaint, fill = false)
+            if (discount > 0) {
+                gridRow("ডিসকাউন্ট", "--", "--", "%.2f".format(discount), headerPaint, headerPaint, fill = false)
+            }
+            if (vat > 0) {
+                gridRow("ভ্যাট", "--", "--", "%.2f".format(vat), headerPaint, headerPaint, fill = false)
+            }
+            if (transportCost > 0) {
+                gridRow("ট্রান্সপোর্টেশন খরচ", "--", "--", "%.2f".format(transportCost), headerPaint, headerPaint, fill = false)
+            }
 
-            // 10. Invoice total + balance summary
             gridRow("ইনভয়েস মোট", totalAmountStr, totalQtyStr, totalAmountStr, boldHeaderPaint, boldHeaderPaint, fill = false)
             labelValueRow("সাব টোটাল =", "%.2f".format(subtotal), headerPaint)
             labelValueRow("পেমেন্ট =", "%.2f".format(payment), headerPaint)
@@ -381,32 +441,31 @@ object BitmapPrintRenderer {
             labelValueRow("পূর্বের বাকি =", "%.2f".format(previousDue), headerPaint)
             labelValueRow("নেট বাকি =", "%.2f".format(netDue), boldHeaderPaint)
 
-            // 11. Footer
-            y += 8f
+            y += 16f
             val footerTop1 = y
             val devLayout = buildLayout(devLabel, footerBoldPaint, boxWidth - padX * 2, Layout.Alignment.ALIGN_CENTER)
             canvas?.let {
                 it.save(); it.translate(boxLeft + padX, footerTop1); devLayout.draw(it); it.restore()
             }
-            y = footerTop1 + devLayout.height + 4f
+            y = footerTop1 + devLayout.height + 8f
 
             val footerTop2 = y
             val webLayout = buildLayout(webUrl, footerPaint, boxWidth - padX * 2, Layout.Alignment.ALIGN_CENTER)
             canvas?.let {
                 it.save(); it.translate(boxLeft + padX, footerTop2); webLayout.draw(it); it.restore()
             }
-            y = footerTop2 + webLayout.height + 10f
+            y = footerTop2 + webLayout.height + 20f
 
-            // Outer box (also covers the top rule, since nothing draws one before the first row)
             canvas?.drawRect(boxLeft, margin, boxRight, y, borderPaint)
             return y
         }
 
-        val totalHeight = pass(null).toInt().coerceAtLeast(100)
-        val bitmap = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+        val totalHeight = pass(null).toInt().coerceAtLeast(200)
+        val highResBitmap = Bitmap.createBitmap(renderWidth, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(highResBitmap)
         canvas.drawColor(Color.WHITE)
         pass(canvas)
-        return bitmap
+
+        return scaleToPrinterWidth(highResBitmap, width)
     }
 }

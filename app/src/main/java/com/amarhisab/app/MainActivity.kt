@@ -20,11 +20,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.amarhisab.app.printer.BluetoothPrinterManager
 
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
     lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
-    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var offlineView: View
     private lateinit var noInternetBanner: TextView
     private lateinit var fabPrinter: FloatingActionButton
@@ -95,25 +94,23 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
         webView = findViewById(R.id.webView)
         progressBar = findViewById(R.id.progressBar)
-        swipeRefresh = findViewById(R.id.swipeRefresh)
         offlineView = findViewById(R.id.offlineView)
         noInternetBanner = findViewById(R.id.noInternetBanner)
         fabPrinter = findViewById(R.id.fabPrinter)
 
         findViewById<Button>(R.id.retryButton).setOnClickListener { loadSite() }
         setupDraggableFab()
+        restoreFabPosition()
 
         printerManager = BluetoothPrinterManager.getInstance(this)
         printerManager.onConnectionStateChanged = {
             runOnUiThread { updateFabState() }
         }
-        requestBluetoothPermissionsIfNeeded()
 
         // Enable Chrome DevTools inspection (chrome://inspect)
         WebView.setWebContentsDebuggingEnabled(true)
 
         setupWebView()
-        swipeRefresh.isEnabled = false
 
         registerNetworkCallback()
         if (savedInstanceState != null) {
@@ -127,6 +124,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     override fun onResume() {
         super.onResume()
         updateFabState()
+        restoreFabPosition()
         updateNetworkBannerState()
         if (!printerManager.isConnected() && printerManager.isBluetoothEnabled() && printerManager.hasSavedPrinter()) {
             printerManager.connectToSaved { _, _ ->
@@ -183,14 +181,6 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         noInternetBanner.visibility = if (hasNet) View.GONE else View.VISIBLE
     }
 
-    private fun requestBluetoothPermissionsIfNeeded() {
-        if (!BluetoothPermissionHelper.hasBluetoothPermissions(this)) {
-            ensureBluetoothReadyWithRationale { ready ->
-                if (ready) updateFabState()
-            }
-        }
-    }
-
     @Suppress("DEPRECATION")
     private fun setupWebView() {
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -227,7 +217,6 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 saveLastUrl(url)
-                swipeRefresh.isRefreshing = false
                 progressBar.visibility = View.GONE
 
                 val overridePrintScript = """
@@ -374,7 +363,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         window._androidBridgeInitialized = true;
 
                         function pickPrintable() {
-                            var minArea = 2000; // ignore tiny icons/nav links that happen to match by class name
+                            var minArea = 2000;
                             var best = null;
                             var bestArea = 0;
 
@@ -386,141 +375,83 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                                 if (area > bestArea) { bestArea = area; best = el; }
                             }
 
-                            // Prefer the largest <table> itself (NOT a wrapping .table-responsive/.card
-                            // container) — those wrappers commonly use overflow-x:auto, which clips the
-                            // rightmost column(s) out of the html2canvas screenshot if we capture the wrapper.
-                            document.querySelectorAll('table').forEach(consider);
+                            // 1. Explicit invoice table id (exact print target)
+                            var invoiceTable = document.getElementById('printInvoiceTable');
+                            if (invoiceTable) return invoiceTable;
 
+                            // 2. Explicit receipt/invoice container elements (contains full header, table, totals, footer)
+                            document.querySelectorAll('#printableArea, #printable, #receipt, #invoice, .printable, .receipt, .invoice, [class*="receipt"], [class*="invoice"], .pos-receipt, .print-area').forEach(consider);
                             if (best && bestArea >= minArea) return best;
 
-                            // No sizeable table found — fall back to class/id-based candidates, largest wins.
-                            document.querySelectorAll('.printable, .receipt, #printableArea, #receipt, .invoice, #invoice, [class*="receipt"], [class*="invoice"], .card-body, .table-responsive').forEach(consider);
-
+                            // 3. Card or modal section wrapper
+                            document.querySelectorAll('.modal-content, .card-body, .card, .main-content').forEach(consider);
                             if (best && bestArea >= minArea) return best;
+
+                            // 4. Parent container of table if table exists
+                            var tables = document.querySelectorAll('table');
+                            tables.forEach(function(t) {
+                                var parent = t.closest('.card, .card-body, .modal-content, .table-responsive, [class*="box"], [class*="container"]') || t.parentElement;
+                                consider(parent || t);
+                            });
+                            if (best && bestArea >= minArea) return best;
+
+                            // 5. Default to body
                             return document.body;
                         }
 
-                        function extractStructuredReceipt(printable) {
-                            if (!printable) return null;
-                            try {
-                                var shopName = "amarhisab";
-                                var address = "";
-                                var phone = "";
-                                var invoiceNo = "";
-                                var date = "";
-                                var customerName = "";
-                                var total = "0";
-                                var subtotal = "";
-                                var paid = "";
-                                var due = "";
-                                var items = [];
-
-                                var headerTd = printable.querySelector('tr:first-child td, h1, h2, .shop-name');
-                                if (headerTd) {
-                                    var lines = (headerTd.innerText || headerTd.textContent || '').split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
-                                    if (lines.length > 0) shopName = lines[0];
-                                    if (lines.length > 1) address = lines[1];
-                                }
-
-                                var allRows = Array.from(printable.querySelectorAll('tr'));
-                                var itemHeaderFound = false;
-
-                                allRows.forEach(function(row) {
-                                    var cells = Array.from(row.querySelectorAll('td, th')).map(function(c) {
-                                        return (c.innerText || c.textContent || '').trim();
-                                    });
-                                    if (cells.length === 0) return;
-                                    var rowText = cells.join(' ');
-
-                                    if (rowText.indexOf('মোবাইল') !== -1 || rowText.indexOf('01') !== -1) {
-                                        var pMatch = rowText.match(/01\d{9}/);
-                                        if (pMatch) phone = pMatch[0];
-                                    }
-                                    if (rowText.indexOf('ইনভয়েস') !== -1 || rowText.indexOf('ইনভয়েস') !== -1 || rowText.indexOf('ইনভয়েস') !== -1) {
-                                        var invMatch = rowText.match(/(?:আইডি|no|#)[:\s-]*(\d+)/i);
-                                        if (invMatch) invoiceNo = invMatch[1];
-                                    }
-                                    if (rowText.indexOf('তারিখ') !== -1) {
-                                        var dateParts = rowText.split(/তারিখ[:-]/);
-                                        if (dateParts.length > 1) date = dateParts[1].trim();
-                                    }
-                                    if (rowText.indexOf('ব্যক্তি') !== -1 || rowText.indexOf('কাস্টমার') !== -1 || rowText.indexOf('গ্রাহক') !== -1) {
-                                        var custParts = rowText.split(/[:-]/);
-                                        if (custParts.length > 1 && !customerName) customerName = custParts[custParts.length - 1].trim();
-                                    }
-
-                                    if (cells.indexOf('নাম') !== -1 && (cells.indexOf('মূল্য') !== -1 || cells.indexOf('পরিমাণ') !== -1)) {
-                                        itemHeaderFound = true;
-                                        return;
-                                    }
-
-                                    if (itemHeaderFound && cells.length >= 3 && rowText.indexOf('টোটাল') === -1 && rowText.indexOf('মোট') === -1 && rowText.indexOf('বাকি') === -1 && rowText.indexOf('পেমেন্ট') === -1 && rowText.indexOf('নেট') === -1) {
-                                        var name = cells[0];
-                                        var price = cells[1];
-                                        var qty = cells[2];
-                                        var itemTotal = cells.length >= 4 ? cells[3] : price;
-                                        if (name && name !== 'নাম') {
-                                            items.push({ name: name, qty: qty, price: price, total: itemTotal });
-                                        }
-                                    }
-
-                                    if (rowText.indexOf('ইনভয়েস মোট') !== -1 || rowText.indexOf('ইনভয়েস মোট') !== -1 || rowText.indexOf('সর্বমোট') !== -1) {
-                                        total = cells[cells.length - 1] || cells[1] || total;
-                                    }
-                                    if (rowText.indexOf('সাব টোটাল') !== -1 || rowText.indexOf('সাবটোটাল') !== -1) {
-                                        subtotal = cells[cells.length - 1] || '';
-                                    }
-                                    if (rowText.indexOf('পেমেন্ট') !== -1 || rowText.indexOf('জমা') !== -1) {
-                                        paid = cells[cells.length - 1] || '';
-                                    }
-                                    if (rowText.indexOf('ইনভয়েস বাকি') !== -1 || rowText.indexOf('নেট বাকি') !== -1 || rowText.indexOf('বাকি') !== -1) {
-                                        if (!due) due = cells[cells.length - 1] || '';
-                                    }
-                                });
-
-                                return {
-                                    shopName: shopName,
-                                    address: address || "Dhaka",
-                                    phone: phone,
-                                    invoiceNo: invoiceNo,
-                                    date: date,
-                                    customerName: customerName,
-                                    items: items,
-                                    total: total.replace(/[^0-9.-]/g, ''),
-                                    subtotal: subtotal.replace(/[^0-9.-]/g, ''),
-                                    paid: paid.replace(/[^0-9.-]/g, ''),
-                                    due: due.replace(/[^0-9.-]/g, ''),
-                                    footer: 'ধন্যবাদ! আবার আসবেন।'
-                                };
-                            } catch(e) {
-                                console.error("extractStructuredReceipt error:", e);
-                                return null;
-                            }
-                        }
-
+                        var _lastPrintTimestamp = 0;
                         function captureAndPrint() {
+                            var now = Date.now();
+                            if (now - _lastPrintTimestamp < 1500) {
+                                console.log("Duplicate captureAndPrint call suppressed by debounce");
+                                return;
+                            }
+                            _lastPrintTimestamp = now;
+
                             if (!window.AndroidBridge) return;
                             var printable = pickPrintable();
 
-                            var structured = extractStructuredReceipt(printable);
-                            if (structured && structured.items && structured.items.length > 0 && window.AndroidBridge.printReceipt) {
-                                console.log("Sending structured receipt JSON directly to native ReceiptBitmapRenderer");
-                                window.AndroidBridge.printReceipt(JSON.stringify(structured));
-                                return;
+                            function doHtml2CanvasPrint(targetElement) {
+                                var el = targetElement || printable;
+                                if (window.html2canvas && el) {
+                                    window.html2canvas(el, {
+                                        scale: 3,
+                                        useCORS: true,
+                                        allowTaint: true,
+                                        backgroundColor: '#ffffff'
+                                    }).then(function(canvas) {
+                                        var dataUrl = canvas.toDataURL('image/png');
+                                        if (window.AndroidBridge.printBitmapBase64) {
+                                            window.AndroidBridge.printBitmapBase64(dataUrl);
+                                        } else if (window.AndroidBridge.printBitmap) {
+                                            window.AndroidBridge.printBitmap(dataUrl);
+                                        }
+                                    }).catch(function(err) {
+                                        console.error("html2canvas capture error:", err);
+                                        if (el !== document.body) {
+                                            doHtml2CanvasPrint(document.body);
+                                        } else {
+                                            fallbackPrintText();
+                                        }
+                                    });
+                                } else {
+                                    fallbackPrintText();
+                                }
                             }
 
-                            if (window.AndroidBridge.printReceipt && printable) {
-                                var fallbackObj = {
-                                    shopName: "amarhisab",
-                                    items: [],
-                                    total: "0",
-                                    footer: (printable.innerText || printable.textContent || "").trim()
-                                };
-                                window.AndroidBridge.printReceipt(JSON.stringify(fallbackObj));
-                                return;
+                            function fallbackPrintText() {
+                                window.AndroidBridge.printText((printable ? (printable.innerText || printable.textContent) : null) || document.body.innerText);
                             }
 
-                            window.AndroidBridge.printText((printable ? (printable.innerText || printable.textContent) : null) || document.body.innerText);
+                            if (!window.html2canvas) {
+                                var script = document.createElement('script');
+                                script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                                script.onload = function() { doHtml2CanvasPrint(); };
+                                script.onerror = function() { fallbackPrintText(); };
+                                document.head.appendChild(script);
+                            } else {
+                                doHtml2CanvasPrint();
+                            }
                         }
 
                         window.print = function() {
@@ -530,22 +461,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
 
                         document.addEventListener('click', function(e) {
                             var el = e.target;
-                            var btn = el ? el.closest('button, a, .btn, [role="button"], input[type="button"], input[type="submit"], .print-btn, #print-btn, [class*="print"], [id*="print"], [onclick*="print"]') : null;
+                            var btn = el ? el.closest('#printPosButton') : null;
 
-                            var targetText = (el ? (el.innerText || el.textContent || '') : '').trim().toLowerCase();
-                            var btnText = (btn ? (btn.innerText || btn.textContent || btn.value || '') : '').trim().toLowerCase();
-
-                            var isPrintText = targetText.indexOf('প্রিন্ট') !== -1 || targetText.indexOf('print') !== -1 ||
-                                             btnText.indexOf('প্রিন্ট') !== -1 || btnText.indexOf('print') !== -1;
-
-                            var onclickStr = ((btn ? btn.getAttribute('onclick') : '') || (el ? el.getAttribute('onclick') : '') || '').toLowerCase();
-                            var className = ((btn ? btn.className : '') || (el ? el.className : '') || '').toLowerCase();
-                            var idName = ((btn ? btn.id : '') || (el ? el.id : '') || '').toLowerCase();
-
-                            var isPrintAction = onclickStr.indexOf('print') !== -1 || className.indexOf('print') !== -1 || idName.indexOf('print') !== -1;
-
-                            if (isPrintText || isPrintAction) {
-                                console.log("Print button captured: " + (targetText || btnText));
+                            if (btn) {
+                                console.log("Print button captured: printPosButton");
                                 e.preventDefault();
                                 e.stopPropagation();
                                 captureAndPrint();
@@ -679,7 +598,6 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         if (isNetworkAvailable()) {
             webView.loadUrl(urlToLoad)
         } else {
-            swipeRefresh.isRefreshing = false
             offlineView.visibility = View.VISIBLE
         }
     }
@@ -702,7 +620,32 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+        if (webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            showExitConfirmDialog()
+        }
+    }
+
+    private fun showExitConfirmDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_exit_confirm, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        dialogView.findViewById<Button>(R.id.btnExitConfirm).setOnClickListener {
+            dialog.dismiss()
+            finish()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnExitCancel).setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     /**
@@ -756,7 +699,9 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
     }
 
     override fun requestEnableBluetooth(onResult: (Boolean) -> Unit) {
-        ensureBluetoothReadyWithRationale(onResult)
+        runOnUiThread {
+            ensureBluetoothReadyWithRationale(onResult)
+        }
     }
 
     /**
@@ -777,7 +722,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
         val drawable = AppCompatResources.getDrawable(this, iconRes)
         fabPrinter.setImageDrawable(drawable)
         fabPrinter.backgroundTintList = ColorStateList.valueOf(bgColor)
+        androidx.core.view.ViewCompat.setBackgroundTintList(fabPrinter, ColorStateList.valueOf(bgColor))
         fabPrinter.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        fabPrinter.invalidate()
+        fabPrinter.requestLayout()
     }
 
     private fun handleFabClick() {
@@ -896,7 +844,9 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
             private var initialTouchX = 0f
             private var initialTouchY = 0f
             private var isClick = false
+            private var downTime = 0L
             private val clickThreshold = 10f
+            private val clickDurationThreshold = 300L
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 val parent = v.parent as? View ?: return false
@@ -906,6 +856,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         initialY = v.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+                        downTime = System.currentTimeMillis()
                         isClick = true
                         return true
                     }
@@ -931,9 +882,12 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (isClick) {
+                        val heldTooLong = System.currentTimeMillis() - downTime > clickDurationThreshold
+                        if (isClick && !heldTooLong) {
                             v.performClick()
                             handleFabClick()
+                        } else {
+                            saveFabPosition(v.x, v.y)
                         }
                         return true
                     }
@@ -941,6 +895,36 @@ class MainActivity : AppCompatActivity(), WebAppInterface.BluetoothEnableRequest
                 return false
             }
         })
+    }
+
+    private fun saveFabPosition(x: Float, y: Float) {
+        getSharedPreferences("amarhisab_prefs", MODE_PRIVATE)
+            .edit()
+            .putFloat("fab_position_x", x)
+            .putFloat("fab_position_y", y)
+            .putBoolean("fab_has_saved_pos", true)
+            .apply()
+    }
+
+    private fun restoreFabPosition() {
+        val prefs = getSharedPreferences("amarhisab_prefs", MODE_PRIVATE)
+        if (!prefs.getBoolean("fab_has_saved_pos", false)) return
+
+        val savedX = prefs.getFloat("fab_position_x", -1f)
+        val savedY = prefs.getFloat("fab_position_y", -1f)
+
+        if (savedX >= 0f && savedY >= 0f) {
+            fabPrinter.post {
+                val parent = fabPrinter.parent as? View ?: return@post
+                val maxX = (parent.width - fabPrinter.width).toFloat()
+                val maxY = (parent.height - fabPrinter.height).toFloat()
+
+                if (maxX > 0 && maxY > 0) {
+                    fabPrinter.x = savedX.coerceIn(0f, maxX)
+                    fabPrinter.y = savedY.coerceIn(0f, maxY)
+                }
+            }
+        }
     }
 
     companion object {

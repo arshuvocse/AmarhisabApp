@@ -31,7 +31,7 @@
         android:id="@+id/dialogTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="ব্লুটুথ অনুমতি ও সংযোগ"
+        android:text="ব্লুটুথ প্রিন্টার কানেকশন অনুমতি"
         android:textColor="#FFFFFF"
         android:textSize="20sp"
         android:textStyle="bold"
@@ -44,7 +44,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:text="🔒 ১০০% নিরাপদ • ক্যাশ মেমো প্রিন্টিং"
+        android:text="🔒 ১০০% নিরাপদ • মেমো ও ইনভয়েস প্রিন্টিং"
         android:textColor="#3B82F6"
         android:textSize="12sp"
         android:textStyle="bold"
@@ -59,11 +59,11 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="আমার হিসাব অ্যাপে ব্লুটুথ থার্মাল প্রিন্টারের মাধ্যমে ক্যাশ মেমো, রসিদ এবং ইনভয়েস সরাসরি প্রিন্ট করার জন্য ব্লুটুথ অনুমতি প্রয়োজন।"
+        android:text="ওয়েবসাইট থেকে সরাসরি ব্লুটুথ থার্মাল প্রিন্টারে ক্যাশ মেমো, রসিদ ও ইনভয়েস প্রিন্ট করার জন্য অ্যান্ড্রয়েড সিস্টেমে ব্লুটুথ অন এবং পারমিশন দেওয়া আবশ্যক।"
         android:textColor="#E2E8F0"
         android:textSize="14sp"
         android:gravity="center"
-        android:lineSpacingExtra="3dp"
+        android:lineSpacingExtra="4dp"
         android:layout_marginBottom="16dp" />
 
     <!-- Privacy & Feature Trust Card -->
@@ -94,12 +94,12 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="থার্মাল প্রিন্টারে সরাসরি মেমো ও রসিদ প্রিন্টিং"
+                android:text="থার্মাল প্রিন্টারে সরাসরি মেমো ও রসিদ প্রিন্ট করতে"
                 android:textColor="#F8FAFC"
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Item 2: Data privacy -->
+        <!-- Item 2: Bluetooth printer search & connect -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -113,17 +113,17 @@
                 android:src="@drawable/ic_check_circle"
                 app:tint="#10B981"
                 android:layout_marginEnd="10dp"
-                android:contentDescription="Privacy icon" />
+                android:contentDescription="Connection icon" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="আপনার কোনো ব্যক্তিগত ডেটা এক্সেস করা হয় না"
+                android:text="আপনার ব্লুটুথ থার্মাল প্রিন্টারটি খুঁজে পেতে ও কানেক্ট করতে"
                 android:textColor="#F8FAFC"
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Item 3: Quick connection -->
+        <!-- Item 3: Data privacy -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -136,12 +136,12 @@
                 android:src="@drawable/ic_check_circle"
                 app:tint="#10B981"
                 android:layout_marginEnd="10dp"
-                android:contentDescription="Connection icon" />
+                android:contentDescription="Privacy icon" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="এক ক্লিকেই প্রিন্টারের সাথে কানেকশন সুবিধা"
+                android:text="এটি সম্পূর্ণ নিরাপদ এবং কেবল প্রিন্টিং কাজের জন্য ব্যবহৃত হয়"
                 android:textColor="#F8FAFC"
                 android:textSize="13sp" />
         </LinearLayout>

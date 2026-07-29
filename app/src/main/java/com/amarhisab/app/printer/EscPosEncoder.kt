@@ -17,7 +17,7 @@ object EscPosEncoder {
     private const val GS = 0x1D
 
     /** Pixels lighter than this (0-255 luminance) print as white. Set to 120
-     *  so anti-aliased text edges stay crisp, thin, and completely free of bold smudging. */
+     *  so text edges stay crisp, clean, and match exact web font weights. */
     private const val DARKNESS_THRESHOLD = 120
 
     fun init(): ByteArray = byteArrayOf(ESC.toByte(), '@'.code.toByte())
